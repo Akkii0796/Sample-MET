@@ -579,7 +579,7 @@
             
             const expense = {
                 id: Date.now(),
-                date: new Date().toISOString().split('T')[0], // Store date in YYYY-MM-DD for consistency 
+                date: new Date().toISOString().split('T')[0], // Store date in YYYY-MM-DD for consistency
                 time: new Date().toLocaleTimeString(),
                 category: category,
                 vendor: vendor.trim(),
@@ -638,7 +638,7 @@
                 return;
             }
             
-            // Limit to last 5 transactions 
+            // Limit to last 5 transactions
             const recentExpenses = expenses.slice(-5).reverse();
             container.innerHTML = recentExpenses.map(expense => `
                 <div class="expense-item">
@@ -715,7 +715,7 @@
                 // Set to the start of the week (Sunday)
                 const weekStart = new Date(expenseDate);
                 weekStart.setDate(expenseDate.getDate() - expenseDate.getDay());
-                weekStart.setHours(0, 0, 0, 0); // Normalize time
+                weekStart.setHours(0, 0, 0, 0); // Normalize time to start of the day
                 const weekKey = weekStart.toISOString().split('T')[0];
                 
                 if (!weeklyData[weekKey]) {
