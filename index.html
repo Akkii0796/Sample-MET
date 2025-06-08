@@ -3,763 +3,170 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Family Expense Tracker</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.39.3/umd/supabase.min.js"></script>
+    <title>Expense Tracker</title>
+    <!-- jsPDF and AutoTable libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-
-        .header h1 {
-            font-size: 2.5rem;
-            font-weight: 300;
-            margin-bottom: 10px;
-        }
-
-        .current-month {
-            font-size: 1.2rem;
-            opacity: 0.9;
-        }
-
-        .sync-status {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: rgba(255,255,255,0.1);
-            padding: 10px 15px;
-            border-radius: 25px;
-            backdrop-filter: blur(10px);
-        }
-
-        .sync-indicator {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #4CAF50;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        .main-content {
-            padding: 30px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-        }
-
-        .left-section, .right-section {
-            display: flex;
-            flex-direction: column;
-            gap: 25px;
-        }
-
-        .card {
-            background: #f8f9ff;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-            border: 1px solid #e1e5f2;
-        }
-
-        .card h3 {
-            color: #333;
-            margin-bottom: 20px;
-            font-size: 1.4rem;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .budget-form {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .budget-form input {
-            flex: 1;
-            padding: 12px 15px;
-            border: 2px solid #e1e5f2;
-            border-radius: 10px;
-            font-size: 1rem;
-        }
-
-        .budget-form button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: transform 0.2s;
-        }
-
-        .budget-form button:hover {
-            transform: translateY(-2px);
-        }
-
-        .budget-summary {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-        }
-
-        .budget-item {
-            text-align: center;
-            padding: 15px;
-            background: white;
-            border-radius: 10px;
-            border: 2px solid #e1e5f2;
-        }
-
-        .budget-item .label {
-            font-size: 0.9rem;
-            color: #666;
-            margin-bottom: 5px;
-        }
-
-        .budget-item .amount {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #333;
-        }
-
-        .remaining.positive { color: #4CAF50; }
-        .remaining.negative { color: #f44336; }
-
-        .expense-form {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-
-        .expense-form input, .expense-form select {
-            padding: 12px 15px;
-            border: 2px solid #e1e5f2;
-            border-radius: 10px;
-            font-size: 1rem;
-        }
-
-        .expense-form .full-width {
-            grid-column: 1 / -1;
-        }
-
-        .expense-form button {
-            grid-column: 1 / -1;
-            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-            color: white;
-            border: none;
-            padding: 15px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 1.1rem;
-            transition: transform 0.2s;
-        }
-
-        .expense-form button:hover {
-            transform: translateY(-2px);
-        }
-
-        .expenses-table {
-            overflow-x: auto;
-            margin-top: 20px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-        }
-
-        th, td {
-            padding: 15px;
-            text-align: left;
-            border-bottom: 1px solid #e1e5f2;
-        }
-
-        th {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            font-weight: 600;
-        }
-
-        tr:hover {
-            background: #f8f9ff;
-        }
-
-        .delete-btn {
-            background: #f44336;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: background 0.2s;
-        }
-
-        .delete-btn:hover {
-            background: #d32f2f;
-        }
-
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 25px;
-        }
-
-        .summary-card {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-        }
-
-        .summary-card h4 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.2rem;
-        }
-
-        .summary-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 0;
-            border-bottom: 1px solid #e1e5f2;
-        }
-
-        .summary-item:last-child {
-            border-bottom: none;
-        }
-
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #4CAF50;
-            color: white;
-            padding: 15px 20px;
-            border-radius: 10px;
-            display: none;
-            z-index: 1000;
-            animation: slideIn 0.3s ease;
-        }
-
-        @keyframes slideIn {
-            from { transform: translateX(100%); }
-            to { transform: translateX(0); }
-        }
-
-        @media (max-width: 768px) {
-            .main-content {
-                grid-template-columns: 1fr;
-            }
-            
-            .budget-summary {
-                grid-template-columns: 1fr;
-            }
-            
-            .expense-form {
-                grid-template-columns: 1fr;
-            }
-            
-            .summary-grid {
-                grid-template-columns: 1fr;
-            }
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 10px; }
+        .container { max-width: 1200px; margin: 0 auto; background: rgba(255,255,255,0.95); border-radius: 20px; backdrop-filter: blur(10px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); overflow: hidden; animation: slideUp 0.5s ease-out; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(30px);} to { opacity: 1; transform: translateY(0);} }
+        .header { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 20px; text-align: center; }
+        .header h1 { font-size: 2rem; margin-bottom: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.3);}        
+        .main-content { display: grid; grid-template-columns: 1fr; gap: 20px; padding: 20px; }
+        @media (min-width: 768px) { .main-content { grid-template-columns: 1fr 1fr; }}
+        @media (min-width: 1024px) { .main-content { grid-template-columns: 1fr 1fr 1fr; }}
+        .card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.05); transition: all 0.3s ease; }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 15px 35px rgba(0,0,0,0.15);}        
+        .card h2 { color: #4f46e5; margin-bottom: 15px; font-size: 1.3rem; display: flex; align-items: center; gap: 10px; }
+        .input-group { margin-bottom: 15px; }
+        .input-group label { display: block; margin-bottom: 5px; color: #374151; font-weight: 600; font-size: 0.9rem; }
+        .input-group input, .input-group select, .input-group textarea { width: 100%; padding: 12px 15px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 1rem; transition: all 0.3s ease; background: #f9fafb; }
+        .input-group input:focus, .input-group select:focus, .input-group textarea:focus { outline: none; border-color: #4f46e5; background: white; box-shadow: 0 0 0 3px rgba(79,70,229,0.1);}        
+        .radio-group { display: flex; gap: 15px; margin-top: 5px; }
+        .radio-option { display: flex; align-items: center; gap: 5px; }
+        .radio-option input[type="radio"] { width: auto; margin: 0; }
+        .radio-option label { margin: 0; font-weight: normal; cursor: pointer; }
+        .btn { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; border: none; padding: 12px 24px; border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; width: 100%; margin-top: 10px; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(79,70,229,0.3);}        
+        .btn:active { transform: translateY(0);}        
+        .btn-secondary { background: linear-gradient(135deg, #10b981, #059669);}        
+        .btn-danger { background: linear-gradient(135deg, #ef4444, #dc2626); padding: 8px 16px; font-size: 0.9rem; width: auto; margin: 0; }
+        .budget-summary { display: grid; grid-template-columns: 1fr; gap: 15px; margin-top: 15px; }
+        @media (min-width: 480px) { .budget-summary { grid-template-columns: repeat(3,1fr); }}        
+        .budget-item { text-align: center; padding: 15px; border-radius: 10px; background: linear-gradient(135deg, #f3f4f6,#e5e7eb); }
+        .budget-item.budget { background: linear-gradient(135deg,#dbeafe,#bfdbfe);}        
+        .budget-item.spent { background: linear-gradient(135deg,#fee2e2,#fecaca);}        
+        .budget-item.remaining { background: linear-gradient(135deg,#d1fae5,#a7f3d0);}        
+        .budget-item h3 { font-size: 0.9rem; color: #6b7280; margin-bottom: 5px;}        
+        .budget-item .amount { font-size: 1.5rem; font-weight: bold; color: #1f2937;}        
+        .table-container { overflow-x: auto; margin-top: 15px; border-radius: 10px; border: 1px solid #e5e7eb; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th { background: linear-gradient(135deg,#4f46e5,#7c3aed); color: white; padding: 12px 8px; text-align: left; font-weight: 600; }
+        td { padding: 12px 8px; border-bottom: 1px solid #e5e7eb; }
+        tr:hover { background: #f9fafb; }
+        .stats-grid { display: grid; grid-template-columns: 1fr; gap: 20px; grid-column: 1/-1; }
+        @media (min-width: 768px) { .stats-grid { grid-template-columns: 1fr 1fr; }}        
+        .icon { font-size: 1.2rem; }
+        .full-width { grid-column: 1/-1; }
+        .download-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+        .download-buttons .btn { flex: 1; min-width: 120px; }
+        @media (max-width: 480px) { .header h1 { font-size: 1.5rem;} .main-content { padding: 15px; gap: 15px;} .card { padding: 15px;} table { font-size: 0.8rem;} th, td { padding: 8px 4px;} }
+        .expense-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e5e7eb;}        
+        .expense-item:last-child { border-bottom: none;}        
+        .expense-details { flex-grow: 1;}        
+        .expense-category { font-weight: 600; color: #4f46e5;}        
+        .expense-vendor { color: #6b7280; font-size: 0.9rem;}        
+        .expense-amount { font-weight: bold; color: #1f2937; margin-right: 10px;}        
+        .loading { display: inline-block; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite;}        
+        @keyframes spin { 0% { transform: rotate(0deg);} 100% { transform: rotate(360deg);} }
+        .sync-status { padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 0.9rem; text-align: center; }
+        .sync-success { background: #d1fae5; color: #065f46; border: 1px solid #10b981; }
+        .sync-error { background: #fee2e2; color: #991b1b; border: 1px solid #ef4444; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <div class="sync-status">
-                <div class="sync-indicator"></div>
-                <span>Live Sync</span>
-            </div>
-            <h1>Family Expense Tracker</h1>
-            <div class="current-month" id="currentMonth"></div>
+            <h1>💰 Expense Tracker - <span id="currentMonth"></span></h1>
+            <p>Track your expenses and manage your budget efficiently</p>
         </div>
-
         <div class="main-content">
-            <div class="left-section">
-                <!-- Budget Section -->
-                <div class="card">
-                    <h3>💰 Set Monthly Budget</h3>
-                    <div class="budget-form">
-                        <input type="number" id="budgetInput" placeholder="Enter monthly budget" step="0.01">
-                        <button onclick="setBudget()">Set Budget</button>
-                    </div>
-                    
-                    <div class="budget-summary" id="budgetSummary">
-                        <div class="budget-item">
-                            <div class="label">Budget</div>
-                            <div class="amount">₹<span id="totalBudget">0</span></div>
-                        </div>
-                        <div class="budget-item">
-                            <div class="label">Spent</div>
-                            <div class="amount">₹<span id="totalSpent">0</span></div>
-                        </div>
-                        <div class="budget-item">
-                            <div class="label">Remaining</div>
-                            <div class="amount remaining" id="remaining">₹<span id="remainingAmount">0</span></div>
-                        </div>
-                    </div>
+            <!-- Budget Section -->
+            <div class="card">
+                <h2>🎯 Set Monthly Budget</h2>
+                <div id="syncStatus" class="sync-status" style="display:none;"></div>
+                <div class="input-group">
+                    <label for="budgetAmount">Budget Amount (₹)</label>
+                    <input type="number" id="budgetAmount" placeholder="Enter your monthly budget">
                 </div>
-
-                <!-- Add Expense Section -->
-                <div class="card">
-                    <h3>➕ Add Expense</h3>
-                    <form class="expense-form" onsubmit="addExpense(event)">
-                        <select id="categorySelect" required>
-                            <option value="">Select Category</option>
-                            <option value="Food">Food</option>
-                            <option value="Transportation">Transportation</option>
-                            <option value="Entertainment">Entertainment</option>
-                            <option value="Shopping">Shopping</option>
-                            <option value="Bills">Bills</option>
-                            <option value="Healthcare">Healthcare</option>
-                            <option value="Education">Education</option>
-                            <option value="Other">Other</option>
-                        </select>
-                        
-                        <input type="text" id="vendorInput" placeholder="Vendor/Store" required>
-                        <input type="number" id="amountInput" placeholder="Amount" step="0.01" required>
-                        <input type="text" id="descriptionInput" placeholder="Description (optional)" class="full-width">
-                        
-                        <button type="submit">Add Expense</button>
-                    </form>
+                <button class="btn" onclick="setBudget(event)">Set Budget</button>
+                <div class="budget-summary">
+                    <div class="budget-item budget"><h3>Budget</h3><div class="amount" id="budgetDisplay">₹0</div></div>
+                    <div class="budget-item spent"><h3>Total Spent</h3><div class="amount" id="totalSpent">₹0</div></div>
+                    <div class="budget-item remaining"><h3>Remaining</h3><div class="amount" id="remaining">₹0</div></div>
                 </div>
             </div>
-
-            <div class="right-section">
-                <!-- Recent Expenses -->
-                <div class="card">
-                    <h3>📋 Recent Expenses (Last 5)</h3>
-                    <div class="expenses-table">
-                        <table id="expensesTable">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Category</th>
-                                    <th>Vendor</th>
-                                    <th>Amount</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="expensesTableBody">
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Summary Section -->
-                <div class="summary-grid">
-                    <div class="summary-card">
-                        <h4>📊 Top Categories</h4>
-                        <div id="topCategories"></div>
-                    </div>
-                    
-                    <div class="summary-card">
-                        <h4>🏪 Top Vendors</h4>
-                        <div id="topVendors"></div>
-                    </div>
-                </div>
-
-                <!-- Weekly Summary -->
-                <div class="card">
-                    <h3>📅 Weekly Summary</h3>
-                    <div id="weeklySummary"></div>
-                </div>
+            <!-- Add Expense Section -->
+            <div class="card">
+                <h2>➕ Add Expense</h2>
+                <div class="input-group"><label>Who is adding this expense?</label><div class="radio-group">
+                    <div class="radio-option"><input type="radio" id="akshay" name="addedBy" value="Akshay" checked><label for="akshay">Akshay</label></div>
+                    <div class="radio-option"><input type="radio" id="achal" name="addedBy" value="Achal"><label for="achal">Achal</label></div>
+                </div></div>
+                <div class="input-group"><label for="category">Category</label><select id="category">
+                    <option>Grocery</option><option>Bills</option><option>Online shopping</option><option>Travelling</option>
+                    <option>Food</option><option>Medical expenses</option><option>Debt</option><option>Petrol</option>
+                    <option>Home expenses other than grocery</option><option>Maintenance</option><option>EMI</option><option>Investment</option>
+                    <option>Entertainment</option><option>Others</option>
+                </select></div>
+                <div class="input-group"><label for="vendor">Vendor</label><input type="text" id="vendor" placeholder="Enter vendor name"></div>
+                <div class="input-group"><label for="amount">Amount (₹)</label><input type="number" id="amount" placeholder="Enter amount"></div>
+                <div class="input-group"><label for="note">Note</label><textarea id="note" rows="3" placeholder="Add a note (optional)"></textarea></div>
+                <button class="btn btn-secondary" onclick="addExpense(event)">Add Expense</button>
             </div>
+            <!-- Recent Expenses Section -->
+            <div class="card full-width">
+                <h2>📋 Recent Expenses (Last 5)</h2>
+                <div id="recentExpenses"><p style="text-align:center;color:#6b7280;padding:20px;">No expenses added yet</p></div>
+            </div>
+            <!-- Statistics Section -->
+            <div class="stats-grid full-width">
+                <div class="card"><h2>🏆 Top 3 Categories</h2><div class="table-container"><table id="topCategoriesTable"><thead><tr><th>Rank</th><th>Category</th><th>Amount</th><th>%</th></tr></thead><tbody><tr><td colspan="4" style="text-align:center;color:#6b7280;">No data available</td></tr></tbody></table></div></div>
+                <div class="card"><h2>🛍️ Top 3 Vendors</h2><div class="table-container"><table id="topVendorsTable"><thead><tr><th>Rank</th><th>Vendor</th><th>Amount</th><th>%</th></tr></thead><tbody><tr><td colspan="4" style="text-align:center;color:#6b7280;">No data available</td></tr></tbody></table></div></div>
+            </div>
+            <!-- Summary Sections -->
+            <div class="card"><h2>📊 Weekly Summary</h2><div class="table-container"><table id="weeklySummaryTable"><thead><tr><th>Week</th><th>Period</th><th>Total Spent</th></tr></thead><tbody><tr><td colspan="3" style="text-align:center;color:#6b7280;">No data available</td></tr></tbody></table></div></div>
+            <div class="card"><h2>📈 Monthly Summary</h2><div class="table-container"><table id="monthlySummaryTable"><thead><tr><th>Month</th><th>Total Spent</th><th>Top Category</th><th>%</th></tr></thead><tbody><tr><td colspan="4" style="text-align:center;color:#6b7280;">No data available</td></tr></tbody></table></div></div>
+            <!-- Download Section -->
+            <div class="card full-width"><h2>💾 Export Data</h2><div class="download-buttons"><button class="btn" onclick="downloadCSV()">📄 Download CSV</button> <button class="btn" onclick="downloadPDF()">📊 Download PDF</button></div></div>
         </div>
     </div>
-
-    <div class="notification" id="notification"></div>
-
     <script>
-        // Supabase Configuration - Replace with your own credentials
-        const SUPABASE_URL = 'https://your-project.supabase.co';
-        const SUPABASE_ANON_KEY = 'your-anon-key';
-        
-        // For demo purposes, we'll use localStorage with simulated real-time sync
-        // In production, replace this with actual Supabase initialization:
-        // const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        
-        let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
-        let monthlyBudget = parseFloat(localStorage.getItem('monthlyBudget')) || 0;
-
-        // Initialize app
-        document.addEventListener('DOMContentLoaded', function() {
-            updateCurrentMonth();
-            updateBudgetDisplay();
-            updateExpensesTable();
-            updateSummaries();
-            
-            // Simulate real-time sync checking
-            setInterval(syncData, 5000);
-            
-            // Set initial budget display
-            document.getElementById('budgetInput').value = monthlyBudget || '';
-        });
-
-        function updateCurrentMonth() {
+        let budget = 0;
+        let expenses = [];
+        function setCurrentMonth() {
             const now = new Date();
-            const monthNames = ["January", "February", "March", "April", "May", "June",
-                "July", "August", "September", "October", "November", "December"];
-            document.getElementById('currentMonth').textContent = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+            const names = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+            document.getElementById('currentMonth').textContent = names[now.getMonth()];
         }
-
-        function setBudget() {
-            const budgetInput = document.getElementById('budgetInput');
-            const budget = parseFloat(budgetInput.value);
-            
-            if (budget > 0) {
-                monthlyBudget = budget;
-                localStorage.setItem('monthlyBudget', budget.toString());
-                updateBudgetDisplay();
-                showNotification('Budget updated successfully!');
-                
-                // Simulate sync to database
-                syncBudgetToDatabase(budget);
-            } else {
-                alert('Please enter a valid budget amount');
-            }
+        async function syncToCloud() {
+            try {
+                localStorage.setItem('shared_budget', budget.toString());
+                localStorage.setItem('shared_expenses', JSON.stringify(expenses));
+                localStorage.setItem('last_sync', new Date().toISOString());
+                showSyncStatus('Data synced successfully!','success');
+                return true;
+            } catch (e) { showSyncStatus('Sync failed. Data saved locally.','error'); return false; }
         }
-
-        function addExpense(event) {
-            event.preventDefault();
-            
-            const category = document.getElementById('categorySelect').value;
-            const vendor = document.getElementById('vendorInput').value;
-            const amount = parseFloat(document.getElementById('amountInput').value);
-            const description = document.getElementById('descriptionInput').value;
-            
-            if (category && vendor && amount > 0) {
-                const expense = {
-                    id: Date.now(),
-                    date: new Date().toISOString(),
-                    category: category,
-                    vendor: vendor,
-                    amount: amount,
-                    description: description,
-                    timestamp: new Date().getTime()
-                };
-                
-                expenses.push(expense);
-                localStorage.setItem('expenses', JSON.stringify(expenses));
-                
-                // Clear form
-                document.getElementById('categorySelect').value = '';
-                document.getElementById('vendorInput').value = '';
-                document.getElementById('amountInput').value = '';
-                document.getElementById('descriptionInput').value = '';
-                
-                updateExpensesTable();
-                updateBudgetDisplay();
-                updateSummaries();
-                showNotification('Expense added successfully!');
-                
-                // Simulate sync to database
-                syncExpenseToDatabase(expense);
-            }
+        async function syncFromCloud() {
+            try {
+                const cb=localStorage.getItem('shared_budget'), ce=localStorage.getItem('shared_expenses');
+                if(cb&&ce){ budget=parseFloat(cb); expenses=JSON.parse(ce);
+                    document.getElementById('budgetAmount').value = budget;
+                    updateDisplay();
+                    const ls=localStorage.getItem('last_sync'); if(ls){ showSyncStatus(`Last synced: ${new Date(ls).toLocaleString()}`,'success'); }
+                }
+                return true;
+            } catch (e) { showSyncStatus('Failed to load shared data.','error'); return false; }
         }
-
-        function deleteExpense(id) {
-            if (confirm('Are you sure you want to delete this expense?')) {
-                expenses = expenses.filter(expense => expense.id !== id);
-                localStorage.setItem('expenses', JSON.stringify(expenses));
-                
-                updateExpensesTable();
-                updateBudgetDisplay();
-                updateSummaries();
-                showNotification('Expense deleted successfully!');
-                
-                // Simulate sync deletion to database
-                syncDeleteToDatabase(id);
-            }
-        }
-
-        function updateBudgetDisplay() {
-            const currentMonth = new Date().getMonth();
-            const currentYear = new Date().getFullYear();
-            
-            const monthlyExpenses = expenses.filter(expense => {
-                const expenseDate = new Date(expense.date);
-                return expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
-            });
-            
-            const totalSpent = monthlyExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-            const remaining = monthlyBudget - totalSpent;
-            
-            document.getElementById('totalBudget').textContent = monthlyBudget.toFixed(2);
-            document.getElementById('totalSpent').textContent = totalSpent.toFixed(2);
-            document.getElementById('remainingAmount').textContent = Math.abs(remaining).toFixed(2);
-            
-            const remainingElement = document.getElementById('remaining');
-            remainingElement.className = 'amount remaining ' + (remaining >= 0 ? 'positive' : 'negative');
-            remainingElement.firstElementChild.textContent = remaining.toFixed(2);
-        }
-
-        function updateExpensesTable() {
-            const tableBody = document.getElementById('expensesTableBody');
-            
-            // Sort expenses by date (newest first) and limit to last 5
-            const recentExpenses = expenses
-                .sort((a, b) => new Date(b.date) - new Date(a.date))
-                .slice(0, 5);
-            
-            tableBody.innerHTML = '';
-            
-            recentExpenses.forEach(expense => {
-                const row = document.createElement('tr');
-                const expenseDate = new Date(expense.date);
-                const formattedDate = expenseDate.toLocaleDateString('en-IN', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric'
-                });
-                
-                row.innerHTML = `
-                    <td>${formattedDate}</td>
-                    <td>${expense.category}</td>
-                    <td>${expense.vendor}</td>
-                    <td>₹${expense.amount.toFixed(2)}</td>
-                    <td><button class="delete-btn" onclick="deleteExpense(${expense.id})">Delete</button></td>
-                `;
-                tableBody.appendChild(row);
-            });
-        }
-
-        function updateSummaries() {
-            updateTopCategories();
-            updateTopVendors();
-            updateWeeklySummary();
-        }
-
-        function updateTopCategories() {
-            const currentMonth = new Date().getMonth();
-            const currentYear = new Date().getFullYear();
-            
-            const monthlyExpenses = expenses.filter(expense => {
-                const expenseDate = new Date(expense.date);
-                return expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
-            });
-            
-            const categoryTotals = {};
-            monthlyExpenses.forEach(expense => {
-                categoryTotals[expense.category] = (categoryTotals[expense.category] || 0) + expense.amount;
-            });
-            
-            const totalSpent = Object.values(categoryTotals).reduce((sum, amount) => sum + amount, 0);
-            const sortedCategories = Object.entries(categoryTotals)
-                .sort(([,a], [,b]) => b - a)
-                .slice(0, 3);
-            
-            const topCategoriesDiv = document.getElementById('topCategories');
-            topCategoriesDiv.innerHTML = '';
-            
-            sortedCategories.forEach(([category, amount], index) => {
-                const percentage = totalSpent > 0 ? ((amount / totalSpent) * 100).toFixed(1) : 0;
-                const item = document.createElement('div');
-                item.className = 'summary-item';
-                item.innerHTML = `
-                    <span>${index + 1}. ${category}</span>
-                    <span>₹${amount.toFixed(2)} (${percentage}%)</span>
-                `;
-                topCategoriesDiv.appendChild(item);
-            });
-        }
-
-        function updateTopVendors() {
-            const currentMonth = new Date().getMonth();
-            const currentYear = new Date().getFullYear();
-            
-            const monthlyExpenses = expenses.filter(expense => {
-                const expenseDate = new Date(expense.date);
-                return expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
-            });
-            
-            const vendorTotals = {};
-            monthlyExpenses.forEach(expense => {
-                vendorTotals[expense.vendor] = (vendorTotals[expense.vendor] || 0) + expense.amount;
-            });
-            
-            const totalSpent = Object.values(vendorTotals).reduce((sum, amount) => sum + amount, 0);
-            const sortedVendors = Object.entries(vendorTotals)
-                .sort(([,a], [,b]) => b - a)
-                .slice(0, 3);
-            
-            const topVendorsDiv = document.getElementById('topVendors');
-            topVendorsDiv.innerHTML = '';
-            
-            sortedVendors.forEach(([vendor, amount], index) => {
-                const percentage = totalSpent > 0 ? ((amount / totalSpent) * 100).toFixed(1) : 0;
-                const item = document.createElement('div');
-                item.className = 'summary-item';
-                item.innerHTML = `
-                    <span>${index + 1}. ${vendor}</span>
-                    <span>₹${amount.toFixed(2)} (${percentage}%)</span>
-                `;
-                topVendorsDiv.appendChild(item);
-            });
-        }
-
-        function updateWeeklySummary() {
-            const now = new Date();
-            const currentMonth = now.getMonth();
-            const currentYear = now.getFullYear();
-            
-            // Get first day of current month
-            const firstDay = new Date(currentYear, currentMonth, 1);
-            const lastDay = new Date(currentYear, currentMonth + 1, 0);
-            
-            const weeks = [];
-            let weekStart = new Date(firstDay);
-            
-            while (weekStart <= lastDay) {
-                let weekEnd = new Date(weekStart);
-                weekEnd.setDate(weekEnd.getDate() + 6);
-                if (weekEnd > lastDay) weekEnd = new Date(lastDay);
-                
-                const weekExpenses = expenses.filter(expense => {
-                    const expenseDate = new Date(expense.date);
-                    return expenseDate >= weekStart && expenseDate <= weekEnd;
-                });
-                
-                const weekTotal = weekExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-                
-                weeks.push({
-                    start: new Date(weekStart),
-                    end: new Date(weekEnd),
-                    total: weekTotal
-                });
-                
-                weekStart.setDate(weekStart.getDate() + 7);
-            }
-            
-            const weeklySummaryDiv = document.getElementById('weeklySummary');
-            weeklySummaryDiv.innerHTML = '';
-            
-            weeks.forEach((week, index) => {
-                const startStr = week.start.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-                const endStr = week.end.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-                
-                const item = document.createElement('div');
-                item.className = 'summary-item';
-                item.innerHTML = `
-                    <span>Week ${index + 1} (${startStr} - ${endStr})</span>
-                    <span>₹${week.total.toFixed(2)}</span>
-                `;
-                weeklySummaryDiv.appendChild(item);
-            });
-        }
-
-        function showNotification(message) {
-            const notification = document.getElementById('notification');
-            notification.textContent = message;
-            notification.style.display = 'block';
-            
-            setTimeout(() => {
-                notification.style.display = 'none';
-            }, 3000);
-        }
-
-        // Simulated real-time sync functions
-        // In production, replace these with actual Supabase calls
-
-        function syncData() {
-            // Simulate checking for updates from other users
-            const lastSync = localStorage.getItem('lastSync') || '0';
-            const currentTime = Date.now().toString();
-            
-            // Check if there are any updates from other devices
-            // In real implementation, this would query Supabase for changes
-            // since lastSync timestamp
-            
-            localStorage.setItem('lastSync', currentTime);
-        }
-
-        function syncBudgetToDatabase(budget) {
-            // In production, this would be:
-            // await supabase.from('budgets').upsert({ 
-            //     user_id: getCurrentUserId(), 
-            //     month: getCurrentMonth(),
-            //     amount: budget 
-            // });
-            console.log('Budget synced to database:', budget);
-        }
-
-        function syncExpenseToDatabase(expense) {
-            // In production, this would be:
-            // await supabase.from('expenses').insert(expense);
-            console.log('Expense synced to database:', expense);
-        }
-
-        function syncDeleteToDatabase(expenseId) {
-            // In production, this would be:
-            // await supabase.from('expenses').delete().eq('id', expenseId);
-            console.log('Expense deletion synced to database:', expenseId);
-        }
-
-        // Listen for real-time updates (Supabase realtime)
-        // In production, this would be:
-        // supabase
-        //   .channel('expenses')
-        //   .on('postgres_changes', 
-        //       { event: '*', schema: 'public', table: 'expenses' }, 
-        //       (payload) => {
-        //           // Handle real-time updates
-        //           handleRealtimeUpdate(payload);
-        //       }
-        //   )
-        //   .subscribe();
-
-        function handleRealtimeUpdate(payload) {
-            // Refresh data when other users make changes
-            updateExpensesTable();
-            updateBudgetDisplay();
-            updateSummaries();
-            showNotification('Data updated by another user!');
-        }
+        function showSyncStatus(msg,type){ const d=document.getElementById('syncStatus'); d.textContent=msg; d.className=`sync-status sync-${type}`; d.style.display='block'; setTimeout(()=>d.style.display='none',3000);}        
+        window.onload = function() { setCurrentMonth(); loadData(); syncFromCloud(); updateDisplay(); };
+        function loadData(){ const sb=localStorage.getItem('budget'), se=localStorage.getItem('expenses'); if(sb){budget=parseFloat(sb); document.getElementById('budgetAmount').value = budget;} if(se){ expenses=JSON.parse(se);} }
+        function saveData(){ localStorage.setItem('budget',budget.toString()); localStorage.setItem('expenses',JSON.stringify(expenses)); syncToCloud(); }
+        function setBudget(e){ const inp=document.getElementById('budgetAmount'); const nb=parseFloat(inp.value); if(!nb||nb<=0){ alert('Please enter a valid budget amount'); return;} budget=nb; saveData(); updateDisplay(); const btn=e.target, txt=btn.textContent; btn.textContent='✅ Budget Set!'; btn.style.background='linear-gradient(135deg,#10b981,#059669)'; setTimeout(()=>{btn.textContent=txt; btn.style.background='linear-gradient(135deg,#4f46e5,#7c3aed)';},2000); }
+        function addExpense(e){ const cat=document.getElementById('category').value, vend=document.getElementById('vendor').value.trim(), amt=parseFloat(document.getElementById('amount').value), note=document.getElementById('note').value.trim(), by=document.querySelector('input[name="addedBy"]:checked').value; if(!vend){alert('Please enter a vendor name'); return;} if(!amt||amt<=0){alert('Please enter a valid amount'); return;} const now=new Date(); const expense={ id:Date.now(), date:now.toLocaleDateString('en-GB'), time:now.toLocaleTimeString(), category:cat, vendor:vend, amount:amt, note:note, addedBy:by, timestamp:now.getTime() }; expenses.push(expense); saveData(); updateDisplay(); document.getElementById('vendor').value=''; document.getElementById('amount').value=''; document.getElementById('note').value=''; const btn=e.target, txt=btn.textContent; btn.textContent='✅ Added!'; setTimeout(()=>btn.textContent=txt,2000); }
+        function deleteExpense(id){ if(confirm('Are you sure you want to delete this expense?')){ expenses=expenses.filter(x=>x.id!==id); saveData(); updateDisplay(); }}
+        function updateDisplay(){ updateBudgetSummary(); updateRecentExpenses(); updateTopCategories(); updateTopVendors(); updateWeeklySummary(); updateMonthlySummary(); }
+        function updateBudgetSummary(){ const total=expenses.reduce((s,x)=>s+x.amount,0), rem=budget-total; document.getElementById('budgetDisplay').textContent=`₹${budget.toLocaleString()}`; document.getElementById('totalSpent').textContent=`₹${total.toLocaleString()}`; document.getElementById('remaining').textContent=`₹${rem.toLocaleString()}`; }
+        function updateRecentExpenses(){ const c=document.getElementById('recentExpenses'); if(!expenses.length){ c.innerHTML='<p style="text-align:center;color:#6b7280;padding:20px;">No expenses added yet</p>'; return;} const recent=expenses.sort((a,b)=>b.timestamp-a.timestamp).slice(0,5); c.innerHTML=recent.map(exp=>`<div class="expense-item"><div class="expense-details"><div class="expense-category">${exp.category}</div><div class="expense-vendor">${exp.vendor} • ${exp.date} ${exp.time}</div><div style="font-size:0.8rem;color:#7c3aed;margin-top:2px;">Added by: ${exp.addedBy}</div>${exp.note?`<div style="font-size:0.8rem;color:#6b7280;margin-top:4px;">${exp.note}</div>`:``}</div><div style="display:flex;align-items:center;gap:10px;"><div class="expense-amount">₹${exp.amount.toLocaleString()}</div><button class="btn btn-danger" onclick="deleteExpense(${exp.id})">🗑️</button></div></div>`).join(''); }
+        function updateTopCategories(){ const totals=expenses.reduce((a,x)=>{a[x.category]=(a[x.category]||0)+x.amount;return a;},{}) , total=expenses.reduce((s,x)=>s+x.amount,0); const sorted=Object.entries(totals).sort(([,a],[,b])=>b-a).slice(0,3); const tb=document.querySelector('#topCategoriesTable tbody'); if(!sorted.length){ tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:#6b7280;">No data available</td></tr>'; return;} tb.innerHTML=sorted.map(([cat,amt],i)=>`<tr><td>${i+1}</td><td>${cat}</td><td>₹${amt.toLocaleString()}</td><td>${((amt/total)*100).toFixed(1)}%</td></tr>`).join(''); }
+        function updateTopVendors(){ const totals=expenses.reduce((a,x)=>{a[x.vendor]=(a[x.vendor]||0)+x.amount;return a;},{}) , total=expenses.reduce((s,x)=>s+x.amount,0); const sorted=Object.entries(totals).sort(([,a],[,b])=>b-a).slice(0,3); const tb=document.querySelector('#topVendorsTable tbody'); if(!sorted.length){ tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:#6b7280;">No data available</td></tr>'; return;} tb.innerHTML=sorted.map(([vend,amt],i)=>`<tr><td>${i+1}</td><td>${vend}</td><td>₹${amt.toLocaleString()}</td><td>${((amt/total)*100).toFixed(1)}%</td></tr>`).join(''); }
+        function updateWeeklySummary(){ const data={}; expenses.forEach(e=>{ const [d,m,y]=e.date.split('/'); const dt=new Date(y,m-1,d); const ws=new Date(dt); ws.setDate(dt.getDate()-dt.getDay()); const key=ws.toISOString().split('T')[0]; data[key]=(data[key]||0)+e.amount; }); const tb=document.querySelector('#weeklySummaryTable tbody'); const weeks=Object.entries(data).sort(([a],[b])=>new Date(b)-new Date(a)); if(!weeks.length){ tb.innerHTML='<tr><td colspan="3" style="text-align:center;color:#6b7280;">No data available</td></tr>'; return;} tb.innerHTML=weeks.map(([start,total],i)=>{ const s=new Date(start), e=new Date(s); e.setDate(s.getDate()+6); return `<tr><td>Week ${i+1}</td><td>${s.toLocaleDateString('en-GB')} - ${e.toLocaleDateString('en-GB')}</td><td>₹${total.toLocaleString()}</td></tr>`; }).join(''); }
+        function updateMonthlySummary(){ const data={}; expenses.forEach(e=>{ const [d,m,y]=e.date.split('/'); const dt=new Date(y,m-1,d); const key=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`; if(!data[key]) data[key]={ total:0, categories:{} }; data[key].total+=e.amount; data[key].categories[e.category]=(data[key].categories[e.category]||0)+e.amount; }); const tb=document.querySelector('#monthlySummaryTable tbody'); const months=Object.entries(data).sort(([a],[b])=>new Date(b+'-01')-new Date(a+'-01')); if(!months.length){ tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:#6b7280;">No data available</td></tr>'; return;} tb.innerHTML=months.map(([key,val])=>{ const [y,mm]=key.split('-'); const mn=new Date(y,mm-1).toLocaleString('en-GB',{month:'long',year:'numeric'}); const top=Object.entries(val.categories).sort(([,a],[,b])=>b-a)[0]; const pct=((top[1]/val.total)*100).toFixed(1); return `<tr><td>${mn}</td><td>₹${val.total.toLocaleString()}</td><td>${top[0]}</td><td>${pct}%</td></tr>`; }).join(''); }
+        function downloadCSV(){ if(!expenses.length){ alert('No expenses to export'); return;} const hdr=['Date','Time','Category','Vendor','Amount','Note','AddedBy']; const rows=expenses.map(e=>[e.date,e.time,e.category,e.vendor,e.amount,e.note,e.addedBy]); let csv=[hdr.join(',')].concat(rows.map(r=>r.map(f=>`"${(''+f).replace(/"/g,'""')}"`).join(','))).join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`expenses_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url); }
+        function downloadPDF(){ if(!expenses.length){ alert('No expenses to export'); return;} const { jsPDF } = window.jspdf; const doc = new jsPDF(); const cols=['Date','Time','Category','Vendor','Amount','Note','AddedBy']; const rows=expenses.map(e=>[e.date,e.time,e.category,e.vendor,'₹'+e.amount.toLocaleString(),e.note,e.addedBy]); doc.autoTable({ head:[cols], body:rows, startY:20 }); doc.save(`expenses_${new Date().toISOString().slice(0,10)}.pdf`); }
     </script>
 </body>
 </html>
