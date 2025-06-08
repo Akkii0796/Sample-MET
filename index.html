@@ -11,13 +11,62 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <style>
-        /* ...existing CSS... */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 10px; }
         .container { max-width: 1200px; margin: 0 auto; background: rgba(255,255,255,0.95); border-radius: 20px; backdrop-filter: blur(10px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); overflow: hidden; animation: slideUp 0.5s ease-out; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(30px);} to { opacity: 1; transform: translateY(0);} }
-        /* [the rest of your CSS as before] */
-        /* Keep all existing styles unchanged */
+        .header { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 20px; text-align: center; }
+        .header h1 { font-size: 2rem; margin-bottom: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .main-content { display: grid; grid-template-columns: 1fr; gap: 20px; padding: 20px; }
+        @media (min-width: 768px) { .main-content { grid-template-columns: 1fr 1fr; } }
+        @media (min-width: 1024px) { .main-content { grid-template-columns: 1fr 1fr 1fr; } }
+        .card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.05); transition: all 0.3s ease; }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 15px 35px rgba(0,0,0,0.15); }
+        .card h2 { color: #4f46e5; margin-bottom: 15px; font-size: 1.3rem; display: flex; align-items: center; gap: 10px; }
+        .input-group { margin-bottom: 15px; }
+        .input-group label { display: block; margin-bottom: 5px; color: #374151; font-weight: 600; font-size: 0.9rem; }
+        .input-group input, .input-group select, .input-group textarea { width: 100%; padding: 12px 15px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 1rem; transition: all 0.3s ease; background: #f9fafb; }
+        .input-group input:focus, .input-group select:focus, .input-group textarea:focus { outline: none; border-color: #4f46e5; background: white; box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+        .radio-group { display: flex; gap: 15px; margin-top: 5px; }
+        .radio-option { display: flex; align-items: center; gap: 5px; }
+        .radio-option input[type="radio"] { width: auto; margin: 0; }
+        .radio-option label { margin: 0; font-weight: normal; cursor: pointer; }
+        .btn { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; border: none; padding: 12px 24px; border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; width: 100%; margin-top: 10px; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(79,70,229,0.3); }
+        .btn:active { transform: translateY(0); }
+        .btn-secondary { background: linear-gradient(135deg, #10b981, #059669); }
+        .btn-danger { background: linear-gradient(135deg, #ef4444, #dc2626); padding: 8px 16px; font-size: 0.9rem; width: auto; margin: 0; }
+        .budget-summary { display: grid; grid-template-columns: 1fr; gap: 15px; margin-top: 15px; }
+        @media (min-width: 480px) { .budget-summary { grid-template-columns: repeat(3,1fr); } }
+        .budget-item { text-align: center; padding: 15px; border-radius: 10px; background: linear-gradient(135deg, #f3f4f6,#e5e7eb); }
+        .budget-item.budget { background: linear-gradient(135deg,#dbeafe,#bfdbfe); }
+        .budget-item.spent { background: linear-gradient(135deg,#fee2e2,#fecaca); }
+        .budget-item.remaining { background: linear-gradient(135deg,#d1fae5,#a7f3d0); }
+        .budget-item h3 { font-size: 0.9rem; color: #6b7280; margin-bottom: 5px; }
+        .budget-item .amount { font-size: 1.5rem; font-weight: bold; color: #1f2937; }
+        .table-container { overflow-x: auto; margin-top: 15px; border-radius: 10px; border: 1px solid #e5e7eb; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th { background: linear-gradient(135deg,#4f46e5,#7c3aed); color: white; padding: 12px 8px; text-align: left; font-weight: 600; }
+        td { padding: 12px 8px; border-bottom: 1px solid #e5e7eb; }
+        tr:hover { background: #f9fafb; }
+        .stats-grid { display: grid; grid-template-columns: 1fr; gap: 20px; grid-column: 1 / -1; }
+        @media (min-width: 768px) { .stats-grid { grid-template-columns: 1fr 1fr; } }
+        .icon { font-size: 1.2rem; }
+        .full-width { grid-column: 1 / -1; }
+        .download-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+        .download-buttons .btn { flex: 1; min-width: 120px; }
+        @media (max-width: 480px) { .header h1 { font-size: 1.5rem; } .main-content { padding: 15px; gap: 15px; } .card { padding: 15px; } table { font-size: 0.8rem; } th, td { padding: 8px 4px; } }
+        .expense-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
+        .expense-item:last-child { border-bottom: none; }
+        .expense-details { flex-grow: 1; }
+        .expense-category { font-weight: 600; color: #4f46e5; }
+        .expense-vendor { color: #6b7280; font-size: 0.9rem; }
+        .expense-amount { font-weight: bold; color: #1f2937; margin-right: 10px; }
+        .loading { display: inline-block; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .sync-status { padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 0.9rem; text-align: center; }
+        .sync-success { background: #d1fae5; color: #065f46; border: 1px solid #10b981; }
+        .sync-error { background: #fee2e2; color: #991b1b; border: 1px solid #ef4444; }
     </style>
 </head>
 <body>
@@ -29,110 +78,11 @@
         <div class="main-content">
             <!-- Budget Section -->
             <div class="card">
-                <h2>🎯 Set Monthly Budget</h2>
+                <h2><span class="icon">🎯</span> Set Monthly Budget</h2>
                 <div id="syncStatus" class="sync-status" style="display:none;"></div>
                 <div class="input-group">
                     <label for="budgetAmount">Budget Amount (₹)</label>
                     <input type="number" id="budgetAmount" placeholder="Enter your monthly budget">
                 </div>
                 <button class="btn" onclick="setBudget(event)">Set Budget</button>
-                <div class="budget-summary">
-                    <div class="budget-item budget"><h3>Budget</h3><div class="amount" id="budgetDisplay">₹0</div></div>
-                    <div class="budget-item spent"><h3>Total Spent</h3><div class="amount" id="totalSpent">₹0</div></div>
-                    <div class="budget-item remaining"><h3>Remaining</h3><div class="amount" id="remaining">₹0</div></div>
-                </div>
-            </div>
-            <!-- Add Expense Section -->
-            <div class="card">
-                <h2>➕ Add Expense</h2>
-                <div class="input-group"><label>Who is adding this expense?</label><div class="radio-group">
-                    <div class="radio-option"><input type="radio" id="akshay" name="addedBy" value="Akshay" checked><label for="akshay">Akshay</label></div>
-                    <div class="radio-option"><input type="radio" id="achal" name="addedBy" value="Achal"><label for="achal">Achal</label></div>
-                </div></div>
-                <div class="input-group"><label for="category">Category</label><select id="category">
-                    <!-- options... -->
-                </select></div>
-                <!-- vendor, amount, note groups -->
-                <button class="btn btn-secondary" onclick="addExpense(event)">Add Expense</button>
-            </div>
-            <!-- Recent Expenses, Stats, Summaries, Export Buttons (same as before) -->
-        </div>
-    </div>
-    <script>
-        // Initialize Firebase
-        <script type="module">
-  // Import the functions you need from the SDKs you need
-  //import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
-  //import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
-
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-  const firebaseConfig = {
-    apiKey: "AIzaSyCVcdGryuTGeMS2Aq9C2cqbeNmfnddDIu8",
-    authDomain: "monthly-expense-tracker-179de.firebaseapp.com",
-    databaseURL: "https://monthly-expense-tracker-179de-default-rtdb.firebaseio.com",
-    projectId: "monthly-expense-tracker-179de",
-    storageBucket: "monthly-expense-tracker-179de.firebasestorage.app",
-    messagingSenderId: "927646586236",
-    appId: "1:927646586236:web:fc56a0334a31464cf000f9",
-    measurementId: "G-CVR339GKH9"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
-        firebase.initializeApp(firebaseConfig);
-        const dbRef = firebase.database().ref('expenseTracker');
-
-        // Local state
-        let budget = 0;
-        let expenses = [];
-
-        // Listen for remote changes
-        dbRef.on('value', snapshot => {
-            const data = snapshot.val();
-            if (data) {
-                if (data.budget != null) budget = data.budget;
-                if (data.expenses != null) expenses = data.expenses;
-                document.getElementById('budgetAmount').value = budget;
-                updateDisplay();
-                showSyncStatus('Data synchronized!', 'success');
-            }
-        });
-
-        function syncToCloud() {
-            return dbRef.set({ budget, expenses })
-                .then(() => showSyncStatus('Data synced to cloud!', 'success'))
-                .catch(err => showSyncStatus('Cloud sync failed.', 'error'));
-        }
-
-        // Other helper functions (setCurrentMonth, showSyncStatus) remain the same
-        window.onload = () => {
-            setCurrentMonth();
-            updateDisplay();
-        };
-
-        function setBudget(e) {
-            const val = parseFloat(document.getElementById('budgetAmount').value);
-            if (!val || val <= 0) return alert('Enter valid budget');
-            budget = val;
-            syncToCloud();
-        }
-
-        function addExpense(e) {
-            // validate inputs
-            const now = new Date();
-            const expense = { id: Date.now(), date: now.toLocaleDateString('en-GB'), time: now.toLocaleTimeString(), /* ...other props*/ };
-            expenses.push(expense);
-            syncToCloud();
-        }
-
-        // updateDisplay, updateBudgetSummary, etc. remain unchanged
-
-        // CSV/PDF export remain unchanged
-    </script>
-</body>
-</html>
+                <div class="
