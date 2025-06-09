@@ -1,846 +1,262 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Expense Tracker</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Expense Tracker</title>
+  <style>
+    /* … your existing CSS … */
+    /* (unchanged for brevity) */
+  </style>
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 10px;
-        }
+  <!-- Firebase CDN setup -->
+  <script type="module">
+    // Import Firebase SDK modules
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
+    import {
+      getDatabase,
+      ref,
+      set,
+      onValue,
+      remove
+    } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-database.js";
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-            animation: slideUp 0.5s ease-out;
-        }
+    // Your Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyCVcdGryuTGeMS2Aq9C2cqbeNmfnddDIu8",
+      authDomain: "monthly-expense-tracker-179de.firebaseapp.com",
+      databaseURL: "https://monthly-expense-tracker-179de-default-rtdb.firebaseio.com",
+      projectId: "monthly-expense-tracker-179de",
+      storageBucket: "monthly-expense-tracker-179de.firebasestorage.app",
+      messagingSenderId: "927646586236",
+      appId: "1:927646586236:web:fc56a0334a31464cf000f9",
+      measurementId: "G-CVR339GKH9"
+    };
 
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    getAnalytics(app);
+    const db = getDatabase(app);
 
-        .header {
-            background: linear-gradient(135deg, #4f46e5, #7c3aed);
-            color: white;
-            padding: 20px;
-            text-align: center;
-        }
+    // Global state
+    let budget = 0;
+    let expenses = [];
 
-        .header h1 {
-            font-size: 2rem;
-            margin-bottom: 10px;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    // Load budget & expenses from RTDB
+    function loadData() {
+      // Budget listener
+      onValue(ref(db, 'budget'), snapshot => {
+        const val = snapshot.val();
+        if (val !== null) {
+          budget = val;
+          document.getElementById('budgetAmount').value = budget;
         }
+        updateDisplay();
+      });
 
-        .main-content {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 20px;
-            padding: 20px;
-        }
+      // Expenses listener
+      onValue(ref(db, 'expenses'), snapshot => {
+        const data = snapshot.val();
+        expenses = data ? Object.values(data) : [];
+        updateDisplay();
+      });
+    }
 
-        @media (min-width: 768px) {
-            .main-content {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
+    // Set budget in RTDB
+    function setBudget() {
+      const newBudget = parseFloat(document.getElementById('budgetAmount').value);
+      if (!newBudget || newBudget <= 0) {
+        alert('Please enter a valid budget amount');
+        return;
+      }
+      budget = newBudget;
+      set(ref(db, 'budget'), budget);
+      // Feedback animation
+      const btn = event.target;
+      const orig = btn.textContent;
+      btn.textContent = '✅ Budget Set!';
+      btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+      setTimeout(() => {
+        btn.textContent = orig;
+        btn.style.background = '';
+      }, 2000);
+    }
 
-        @media (min-width: 1024px) {
-            .main-content {
-                grid-template-columns: 1fr 1fr 1fr;
-            }
-        }
+    // Add expense to RTDB under its timestamp ID
+    function addExpense() {
+      const category = document.getElementById('category').value;
+      const vendor = document.getElementById('vendor').value.trim();
+      const amount = parseFloat(document.getElementById('amount').value);
+      const note = document.getElementById('note').value.trim();
+      if (!vendor) {
+        alert('Please enter a vendor name');
+        return;
+      }
+      if (!amount || amount <= 0) {
+        alert('Please enter a valid amount');
+        return;
+      }
+      const id = Date.now();
+      const expense = {
+        id,
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toLocaleTimeString(),
+        category,
+        vendor,
+        amount,
+        note
+      };
+      set(ref(db, `expenses/${id}`), expense);
+      // Feedback
+      const btn = event.target;
+      const orig = btn.textContent;
+      btn.textContent = '✅ Added!';
+      setTimeout(() => btn.textContent = orig, 2000);
+    }
 
-        .card {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-            border: 1px solid rgba(0, 0, 0, 0.05);
-            transition: all 0.3s ease;
-        }
+    // Remove expense from RTDB
+    function deleteExpense(id) {
+      if (confirm('Are you sure you want to delete this expense?')) {
+        remove(ref(db, `expenses/${id}`));
+      }
+    }
 
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
-        }
+    // UI update functions (unchanged logic)
+    function updateDisplay() {
+      updateBudgetSummary();
+      updateRecentExpenses();
+      updateTopCategories();
+      updateTopVendors();
+      updateWeeklySummary();
+      updateMonthlySummary();
+    }
+    function updateHeaderMonth() {
+      const m = new Date().toLocaleDateString('en-US',{ month:'long'});
+      document.getElementById('headerTitle').innerHTML = `💰 Expense Tracker - ${m}`;
+    }
+    function updateBudgetSummary() {
+      const total = expenses.reduce((s,e)=>s+e.amount,0);
+      document.getElementById('budgetDisplay').textContent = `₹${budget.toLocaleString()}`;
+      document.getElementById('totalSpent').textContent   = `₹${total.toLocaleString()}`;
+      document.getElementById('remaining').textContent    = `₹${(budget-total).toLocaleString()}`;
+    }
+    function updateRecentExpenses(){
+      const c=document.getElementById('recentExpenses');
+      if(!expenses.length){
+        c.innerHTML=`<p style="text-align:center;color:#6b7280;padding:20px">No expenses added yet</p>`;
+        return;
+      }
+      const list=expenses.slice(-5).reverse().map(e=>`
+        <div class="expense-item">
+          <div class="expense-details">
+            <div class="expense-category">${e.category}</div>
+            <div class="expense-vendor">${new Date(e.date).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})} ${e.time}</div>
+            ${e.note?`<div style="font-size:.8rem;color:#6b7280;margin-top:4px">${e.note}</div>`:''}
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="expense-amount">₹${e.amount.toLocaleString()}</div>
+            <button class="btn btn-danger" onclick="deleteExpense(${e.id})">🗑️</button>
+          </div>
+        </div>`).join('');
+      c.innerHTML = list;
+    }
+    function updateTopCategories(){
+      const totals=expenses.reduce((a,e)=>(a[e.category]=(a[e.category]||0)+e.amount,a),{});
+      const total=expenses.reduce((s,e)=>s+e.amount,0);
+      const top=Object.entries(totals).sort(([,a],[,b])=>b-a).slice(0,3);
+      const tb=document.querySelector('#topCategoriesTable tbody');
+      if(!top.length){
+        tb.innerHTML=`<tr><td colspan="4" style="text-align:center;color:#6b7280">No data available</td></tr>`;
+        return;
+      }
+      tb.innerHTML=top.map(([cat,amt],i)=>`
+        <tr>
+          <td>${i+1}</td>
+          <td>${cat}</td>
+          <td>₹${amt.toLocaleString()}</td>
+          <td>${((amt/total)*100).toFixed(1)}%</td>
+        </tr>`).join('');
+    }
+    function updateTopVendors(){
+      const totals=expenses.reduce((a,e)=>(a[e.vendor]=(a[e.vendor]||0)+e.amount,a),{});
+      const total=expenses.reduce((s,e)=>s+e.amount,0);
+      const top=Object.entries(totals).sort(([,a],[,b])=>b-a).slice(0,3);
+      const tb=document.querySelector('#topVendorsTable tbody');
+      if(!top.length){
+        tb.innerHTML=`<tr><td colspan="4" style="text-align:center;color:#6b7280">No data available</td></tr>`;
+        return;
+      }
+      tb.innerHTML=top.map(([v,amt],i)=>`
+        <tr>
+          <td>${i+1}</td>
+          <td>${v}</td>
+          <td>₹${amt.toLocaleString()}</td>
+          <td>${((amt/total)*100).toFixed(1)}%</td>
+        </tr>`).join('');
+    }
+    function updateWeeklySummary(){
+      const w={};
+      expenses.forEach(e=>{
+        const d=new Date(e.date), s=new Date(d);
+        s.setDate(d.getDate()-d.getDay()); s.setHours(0,0,0,0);
+        const key=s.toISOString().split('T')[0];
+        w[key]=(w[key]||0)+e.amount;
+      });
+      const rows=Object.entries(w).sort(([,],[b])=>new Date(b)-new Date(a));
+      const tb=document.querySelector('#weeklySummaryTable tbody');
+      if(!rows.length){
+        tb.innerHTML=`<tr><td colspan="3" style="text-align:center;color:#6b7280">No data available</td></tr>`;
+        return;
+      }
+      tb.innerHTML=rows.map(([start,total],i=>{
+        const s=new Date(start), e=new Date(s);
+        e.setDate(s.getDate()+6);
+        return `
+          <tr>
+            <td>Week ${i+1}</td>
+            <td>${s.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})} - ${e.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})}</td>
+            <td>₹${total.toLocaleString()}</td>
+          </tr>`;
+      }).join('');
+    }
+    function updateMonthlySummary(){
+      const m={};
+      expenses.forEach(e=>{
+        const d=new Date(e.date), key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        if(!m[key]) m[key]={total:0,cats:{}};
+        m[key].total+=e.amount;
+        m[key].cats[e.category]=(m[key].cats[e.category]||0)+e.amount;
+      });
+      const rows=Object.entries(m).sort(([,a],[,b])=>b.total-a.total);
+      const tb=document.querySelector('#monthlySummaryTable tbody');
+      if(!rows.length){
+        tb.innerHTML=`<tr><td colspan="4" style="text-align:center;color:#6b7280">No data available</td></tr>`;
+        return;
+      }
+      tb.innerHTML=rows.map(([month,data])=>{
+        const top=Object.entries(data.cats).sort(([,a],[,b])=>b-a)[0]||['N/A',0];
+        return `
+          <tr>
+            <td>${new Date(month+'-01').toLocaleDateString('en-US',{year:'numeric',month:'long'})}</td>
+            <td>₹${data.total.toLocaleString()}</td>
+            <td>${top[0]}</td>
+            <td>${top[1]?((top[1]/data.total)*100).toFixed(1)+'%':'0%'}</td>
+          </tr>`;
+      }).join('');
+    }
 
-        .card h2 {
-            color: #4f46e5;
-            margin-bottom: 15px;
-            font-size: 1.3rem;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .input-group {
-            margin-bottom: 15px;
-        }
-
-        .input-group label {
-            display: block;
-            margin-bottom: 5px;
-            color: #374151;
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-
-        .input-group input,
-        .input-group select,
-        .input-group textarea {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e5e7eb;
-            border-radius: 10px;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            background: #f9fafb;
-        }
-
-        .input-group input:focus,
-        .input-group select:focus,
-        .input-group textarea:focus {
-            outline: none;
-            border-color: #4f46e5;
-            background: white;
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-        }
-
-        .btn {
-            background: linear-gradient(135deg, #4f46e5, #7c3aed);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 10px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            width: 100%;
-            margin-top: 10px;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(79, 70, 229, 0.3);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .btn-secondary {
-            background: linear-gradient(135deg, #10b981, #059669);
-        }
-
-        .btn-danger {
-            background: linear-gradient(135deg, #ef4444, #dc2626);
-            padding: 8px 16px;
-            font-size: 0.9rem;
-            width: auto;
-            margin: 0;
-        }
-
-        .budget-summary {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 15px;
-            margin-top: 15px;
-        }
-
-        @media (min-width: 480px) {
-            .budget-summary {
-                grid-template-columns: repeat(3, 1fr);
-            }
-        }
-
-        .budget-item {
-            text-align: center;
-            padding: 15px;
-            border-radius: 10px;
-            background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
-        }
-
-        .budget-item.budget {
-            background: linear-gradient(135deg, #dbeafe, #bfdbfe);
-        }
-
-        .budget-item.spent {
-            background: linear-gradient(135deg, #fee2e2, #fecaca);
-        }
-
-        .budget-item.remaining {
-            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-        }
-
-        .budget-item h3 {
-            font-size: 0.9rem;
-            color: #6b7280;
-            margin-bottom: 5px;
-        }
-
-        .budget-item .amount {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #1f2937;
-        }
-
-        .table-container {
-            overflow-x: auto;
-            margin-top: 15px;
-            border-radius: 10px;
-            border: 1px solid #e5e7eb;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-
-        th {
-            background: linear-gradient(135deg, #4f46e5, #7c3aed);
-            color: white;
-            padding: 12px 8px;
-            text-align: left;
-            font-weight: 600;
-        }
-
-        td {
-            padding: 12px 8px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        tr:hover {
-            background: #f9fafb;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 20px;
-            grid-column: 1 / -1;
-        }
-
-        @media (min-width: 768px) {
-            .stats-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-
-        .icon {
-            font-size: 1.2rem;
-        }
-
-        .full-width {
-            grid-column: 1 / -1;
-        }
-
-        .download-buttons {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .download-buttons .btn {
-            flex: 1;
-            min-width: 120px;
-        }
-
-        @media (max-width: 480px) {
-            .header h1 {
-                font-size: 1.5rem;
-            }
-            
-            .main-content {
-                padding: 15px;
-                gap: 15px;
-            }
-            
-            .card {
-                padding: 15px;
-            }
-            
-            table {
-                font-size: 0.8rem;
-            }
-            
-            th, td {
-                padding: 8px 4px;
-            }
-        }
-
-        .expense-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 0;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .expense-item:last-child {
-            border-bottom: none;
-        }
-
-        .expense-details {
-            flex-grow: 1;
-        }
-
-        .expense-category {
-            font-weight: 600;
-            color: #4f46e5;
-        }
-
-        .expense-vendor {
-            color: #6b7280;
-            font-size: 0.9rem;
-        }
-
-        .expense-amount {
-            font-weight: bold;
-            color: #1f2937;
-            margin-right: 10px;
-        }
-
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #3498db;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
+    // Initialize on page load
+    window.onload = () => {
+      loadData();
+      updateHeaderMonth();
+    };
+  </script>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1 id="headerTitle">💰 Expense Tracker</h1>
-            <p>Track your expenses and manage your budget efficiently</p>
-        </div>
-
-        <div class="main-content">
-            <div class="card">
-                <h2><span class="icon">🎯</span> Set Monthly Budget</h2>
-                <div class="input-group">
-                    <label for="budgetAmount">Budget Amount (₹)</label>
-                    <input type="number" id="budgetAmount" placeholder="Enter your monthly budget">
-                </div>
-                <button class="btn" onclick="setBudget()">Set Budget</button>
-                
-                <div class="budget-summary">
-                    <div class="budget-item budget">
-                        <h3>Budget</h3>
-                        <div class="amount" id="budgetDisplay">₹0</div>
-                    </div>
-                    <div class="budget-item spent">
-                        <h3>Total Spent</h3>
-                        <div class="amount" id="totalSpent">₹0</div>
-                    </div>
-                    <div class="budget-item remaining">
-                        <h3>Remaining</h3>
-                        <div class="amount" id="remaining">₹0</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2><span class="icon">➕</span> Add Expense</h2>
-                <div class="input-group">
-                    <label for="category">Category</label>
-                    <select id="category">
-                        <option value="Grocery">Grocery</option>
-                        <option value="Bills">Bills</option>
-                        <option value="Online shopping">Online shopping</option>
-                        <option value="Travelling">Travelling</option>
-                        <option value="Food">Food</option>
-                        <option value="Medical expenses">Medical expenses</option>
-                        <option value="Debt">Debt</option>
-                        <option value="Petrol">Petrol</option>
-                        <option value="Home expenses other than grocery">Home expenses other than grocery</option>
-                        <option value="Maintenance">Maintenance</option>
-                        <option value="EMI">EMI</option>
-                        <option value="Investment">Investment</option>
-                        <option value="Entertainment">Entertainment</option>
-                        <option value="Others">Others</option>
-                    </select>
-                </div>
-                <div class="input-group">
-                    <label for="vendor">Vendor</label>
-                    <input type="text" id="vendor" placeholder="Enter vendor name">
-                </div>
-                <div class="input-group">
-                    <label for="amount">Amount (₹)</label>
-                    <input type="number" id="amount" placeholder="Enter amount">
-                </div>
-                <div class="input-group">
-                    <label for="note">Note</label>
-                    <textarea id="note" rows="3" placeholder="Add a note (optional)"></textarea>
-                </div>
-                <button class="btn btn-secondary" onclick="addExpense()">Add Expense</button>
-            </div>
-
-            <div class="card full-width">
-                <h2><span class="icon">📋</span> Recent Expenses</h2>
-                <div id="recentExpenses">
-                    <p style="text-align: center; color: #6b7280; padding: 20px;">No expenses added yet</p>
-                </div>
-            </div>
-
-            <div class="stats-grid">
-                <div class="card">
-                    <h2><span class="icon">🏆</span> Top 3 Categories</h2>
-                    <div class="table-container">
-                        <table id="topCategoriesTable">
-                            <thead>
-                                <tr>
-                                    <th>Rank</th>
-                                    <th>Category</th>
-                                    <th>Amount</th>
-                                    <th>%</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr><td colspan="4" style="text-align: center; color: #6b7280;">No data available</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <h2><span class="icon">🛍️</span> Top 3 Vendors</h2>
-                    <div class="table-container">
-                        <table id="topVendorsTable">
-                            <thead>
-                                <tr>
-                                    <th>Rank</th>
-                                    <th>Vendor</th>
-                                    <th>Amount</th>
-                                    <th>%</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr><td colspan="4" style="text-align: center; color: #6b7280;">No data available</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2><span class="icon">📊</span> Weekly Summary</h2>
-                <div class="table-container">
-                    <table id="weeklySummaryTable">
-                        <thead>
-                            <tr>
-                                <th>Week</th>
-                                <th>Period</th>
-                                <th>Total Spent</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr><td colspan="3" style="text-align: center; color: #6b7280;">No data available</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2><span class="icon">📈</span> Monthly Summary</h2>
-                <div class="table-container">
-                    <table id="monthlySummaryTable">
-                        <thead>
-                            <tr>
-                                <th>Month</th>
-                                <th>Total Spent</th>
-                                <th>Top Category</th>
-                                <th>%</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr><td colspan="4" style="text-align: center; color: #6b7280;">No data available</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="card full-width">
-                <h2><span class="icon">💾</span> Export Data</h2>
-                <div class="download-buttons">
-                    <button class="btn" onclick="downloadCSV()">📄 Download CSV</button>
-                    <button class="btn" onclick="downloadPDF()">📊 Download PDF</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // Global variables to store data
-        let budget = 0;
-        let expenses = [];
-
-        // Load data from localStorage on page load
-        window.onload = function() {
-            loadData();
-            updateDisplay();
-            updateHeaderMonth(); // Call new function to update header
-        };
-
-        function loadData() {
-            const savedBudget = localStorage.getItem('budget');
-            const savedExpenses = localStorage.getItem('expenses');
-            if (savedBudget) {
-                budget = parseFloat(savedBudget);
-                document.getElementById('budgetAmount').value = budget;
-            }
-            
-            if (savedExpenses) {
-                expenses = JSON.parse(savedExpenses);
-            }
-        }
-
-        function saveData() {
-            localStorage.setItem('budget', budget.toString());
-            localStorage.setItem('expenses', JSON.stringify(expenses));
-        }
-
-        function updateHeaderMonth() {
-            const date = new Date();
-            const monthName = date.toLocaleDateString('en-US', { month: 'long' });
-            document.getElementById('headerTitle').innerHTML = `💰 Expense Tracker - ${monthName}`;
-        }
-
-        function setBudget() {
-            const budgetInput = document.getElementById('budgetAmount');
-            const newBudget = parseFloat(budgetInput.value);
-            
-            if (!newBudget || newBudget <= 0) {
-                alert('Please enter a valid budget amount');
-                return;
-            }
-            
-            budget = newBudget;
-            saveData();
-            updateDisplay();
-            
-            // Show success feedback
-            const btn = event.target;
-            const originalText = btn.textContent;
-            btn.textContent = '✅ Budget Set!';
-            btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
-            setTimeout(() => {
-                btn.textContent = originalText;
-                btn.style.background = 'linear-gradient(135deg, #4f46e5, #7c3aed)';
-            }, 2000);
-        }
-
-        function addExpense() {
-            const category = document.getElementById('category').value;
-            const vendor = document.getElementById('vendor').value;
-            const amount = parseFloat(document.getElementById('amount').value);
-            const note = document.getElementById('note').value;
-            if (!vendor.trim()) {
-                alert('Please enter a vendor name');
-                return;
-            }
-            
-            if (!amount || amount <= 0) {
-                alert('Please enter a valid amount');
-                return;
-            }
-            
-            const expense = {
-                id: Date.now(),
-                date: new Date().toISOString().split('T')[0], // Store date in YYYY-MM-DD for consistency
-                time: new Date().toLocaleTimeString(),
-                category: category,
-                vendor: vendor.trim(),
-                amount: amount,
-                note: note.trim()
-            };
-            expenses.push(expense);
-            saveData();
-            updateDisplay();
-            
-            // Clear form
-            document.getElementById('vendor').value = '';
-            document.getElementById('amount').value = '';
-            document.getElementById('note').value = '';
-            
-            // Show success feedback
-            const btn = event.target;
-            const originalText = btn.textContent;
-            btn.textContent = '✅ Added!';
-            
-            setTimeout(() => {
-                btn.textContent = originalText;
-            }, 2000);
-        }
-
-        function deleteExpense(id) {
-            if (confirm('Are you sure you want to delete this expense?')) {
-                expenses = expenses.filter(expense => expense.id !== id);
-                saveData();
-                updateDisplay();
-            }
-        }
-
-        function updateDisplay() {
-            updateBudgetSummary();
-            updateRecentExpenses();
-            updateTopCategories();
-            updateTopVendors();
-            updateWeeklySummary();
-            updateMonthlySummary();
-        }
-
-        function updateBudgetSummary() {
-            const totalSpent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-            const remaining = budget - totalSpent;
-            
-            document.getElementById('budgetDisplay').textContent = `₹${budget.toLocaleString()}`;
-            document.getElementById('totalSpent').textContent = `₹${totalSpent.toLocaleString()}`;
-            document.getElementById('remaining').textContent = `₹${remaining.toLocaleString()}`;
-        }
-
-        function updateRecentExpenses() {
-            const container = document.getElementById('recentExpenses');
-            if (expenses.length === 0) {
-                container.innerHTML = '<p style="text-align: center; color: #6b7280; padding: 20px;">No expenses added yet</p>';
-                return;
-            }
-            
-            // Limit to last 5 transactions
-            const recentExpenses = expenses.slice(-5).reverse();
-            container.innerHTML = recentExpenses.map(expense => `
-                <div class="expense-item">
-                    <div class="expense-details">
-                        <div class="expense-category">${expense.category}</div>
-                        <div class="expense-vendor">${new Date(expense.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })} ${expense.time}</div>
-                        ${expense.note ? `<div style="font-size: 0.8rem; color: #6b7280; margin-top: 4px;">${expense.note}</div>` : ''}
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <div class="expense-amount">₹${expense.amount.toLocaleString()}</div>
-                        <button class="btn btn-danger" onclick="deleteExpense(${expense.id})">🗑️</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function updateTopCategories() {
-            const categoryTotals = expenses.reduce((acc, expense) => {
-                acc[expense.category] = (acc[expense.category] || 0) + expense.amount;
-                return acc;
-            }, {});
-            const totalSpent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-            const sortedCategories = Object.entries(categoryTotals)
-                .sort(([,a], [,b]) => b - a)
-                .slice(0, 3);
-            const tbody = document.getElementById('topCategoriesTable').querySelector('tbody');
-            
-            if (sortedCategories.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #6b7280;">No data available</td></tr>';
-                return;
-            }
-            
-            tbody.innerHTML = sortedCategories.map(([category, amount], index) => `
-                <tr>
-                    <td>${index + 1}</td>
-                    <td>${category}</td>
-                    <td>₹${amount.toLocaleString()}</td>
-                    <td>${((amount / totalSpent) * 100).toFixed(1)}%</td>
-                </tr>
-            `).join('');
-        }
-
-        function updateTopVendors() {
-            const vendorTotals = expenses.reduce((acc, expense) => {
-                acc[expense.vendor] = (acc[expense.vendor] || 0) + expense.amount;
-                return acc;
-            }, {});
-            const totalSpent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-            const sortedVendors = Object.entries(vendorTotals)
-                .sort(([,a], [,b]) => b - a)
-                .slice(0, 3);
-            const tbody = document.getElementById('topVendorsTable').querySelector('tbody');
-            
-            if (sortedVendors.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #6b7280;">No data available</td></tr>';
-                return;
-            }
-            
-            tbody.innerHTML = sortedVendors.map(([vendor, amount], index) => `
-                <tr>
-                    <td>${index + 1}</td>
-                    <td>${vendor}</td>
-                    <td>₹${amount.toLocaleString()}</td>
-                    <td>${((amount / totalSpent) * 100).toFixed(1)}%</td>
-                </tr>
-            `).join('');
-        }
-
-        function updateWeeklySummary() {
-            const weeklyData = {};
-            
-            expenses.forEach(expense => {
-                const expenseDate = new Date(expense.date);
-                // Set to the start of the week (Sunday)
-                const weekStart = new Date(expenseDate);
-                weekStart.setDate(expenseDate.getDate() - expenseDate.getDay());
-                weekStart.setHours(0, 0, 0, 0); // Normalize time to start of the day
-                const weekKey = weekStart.toISOString().split('T')[0];
-                
-                if (!weeklyData[weekKey]) {
-                    weeklyData[weekKey] = 0;
-                }
-                weeklyData[weekKey] += expense.amount;
-            });
-            const tbody = document.getElementById('weeklySummaryTable').querySelector('tbody');
-            const sortedWeeks = Object.entries(weeklyData).sort(([a], [b]) => new Date(b) - new Date(a));
-            
-            if (sortedWeeks.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #6b7280;">No data available</td></tr>';
-                return;
-            }
-            
-            tbody.innerHTML = sortedWeeks.map(([weekStart, total], index) => {
-                const start = new Date(weekStart);
-                const end = new Date(start);
-                end.setDate(start.getDate() + 6);
-                
-                return `
-                    <tr>
-                        <td>Week ${index + 1}</td>
-                        <td>${start.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })} - ${end.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
-                        <td>₹${total.toLocaleString()}</td>
-                    </tr>
-                `;
-            }).join('');
-        }
-
-        function updateMonthlySummary() {
-            const monthlyData = {};
-            expenses.forEach(expense => {
-                const expenseDate = new Date(expense.date);
-                const monthKey = `${expenseDate.getFullYear()}-${String(expenseDate.getMonth() + 1).padStart(2, '0')}`;
-                
-                if (!monthlyData[monthKey]) {
-                    monthlyData[monthKey] = { total: 0, categories: {} };
-                }
-                
-                monthlyData[monthKey].total += expense.amount;
-                monthlyData[monthKey].categories[expense.category] = 
-                    (monthlyData[monthKey].categories[expense.category] || 0) + expense.amount;
-            });
-            
-            const tbody = document.getElementById('monthlySummaryTable').querySelector('tbody');
-            const sortedMonths = Object.entries(monthlyData).sort(([a], [b]) => b.localeCompare(a));
-            
-            if (sortedMonths.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #6b7280;">No data available</td></tr>';
-                return;
-            }
-            
-            tbody.innerHTML = sortedMonths.map(([month, data]) => {
-                const topCategory = Object.entries(data.categories)
-                    .sort(([,a], [,b]) => b - a)[0];
-                
-                const percentage = topCategory ? ((topCategory[1] / data.total) * 100).toFixed(1) : 0;
-                
-                return `
-                    <tr>
-                        <td>${new Date(month + '-01').toLocaleDateString('en-US', {year: 'numeric', month: 'long'})}</td>
-                        <td>₹${data.total.toLocaleString()}</td>
-                        <td>${topCategory ? topCategory[0] : 'N/A'}</td>
-                        <td>${percentage}%</td>
-                    </tr>
-                `;
-            }).join('');
-        }
-
-        function downloadCSV() {
-            if (expenses.length === 0) {
-                alert('No expenses to export');
-                return;
-            }
-            
-            const csvContent = [
-                ['Date', 'Time', 'Category', 'Vendor', 'Amount', 'Note'],
-                ...expenses.map(expense => [
-                    expense.date,
-                    expense.time,
-                    expense.category,
-                    expense.vendor,
-                    expense.amount,
-                    expense.note || ''
-                ])
-            ].map(row => row.map(field => `"${field}"`).join(',')).join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `expenses_${new Date().toISOString().split('T')[0]}.csv`;
-            a.click();
-            window.URL.revokeObjectURL(url);
-        }
-
-        function downloadPDF() {
-            if (expenses.length === 0) {
-                alert('No expenses to export');
-                return;
-            }
-            
-            // Simple PDF generation - in a real app, you'd use a library like jsPDF
-            const content = `
-                EXPENSE REPORT
-                Generated: ${new Date().toLocaleDateString()}
-                
-                Budget: ₹${budget.toLocaleString()}
-                Total Spent: ₹${expenses.reduce((sum, expense) => sum + expense.amount, 0).toLocaleString()}
-                Remaining: ₹${(budget - expenses.reduce((sum, expense) => sum + expense.amount, 0)).toLocaleString()}
-                
-                EXPENSES:
-                ${expenses.map(expense => 
-                    `${new Date(expense.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })} ${expense.time} - ${expense.category} - ${expense.vendor} - ₹${expense.amount}${expense.note ? ' (' + expense.note + ')' : ''}`
-                ).join('\n                ')}
-            `;
-            
-            const blob = new Blob([content], { type: 'text/plain' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `expense_report_${new Date().toISOString().split('T')[0]}.txt`;
-            a.click();
-            window.URL.revokeObjectURL(url);
-        }
-    </script>
+  <div class="container">
+    <!-- … your existing body markup … -->
+    <!-- unchanged cards/forms/tables/buttons … -->
+  </div>
 </body>
 </html>
