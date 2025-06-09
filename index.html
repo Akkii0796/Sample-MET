@@ -2,31 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Expense Tracker</title>
-  <style>
-    /* … your existing CSS … */
-    /* (unchanged for brevity) */
-  </style>
-
-  <!-- Firebase CDN setup -->
   <script type="module">
-    // Import Firebase SDK modules
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
     import {
       getDatabase,
       ref,
       set,
-      onValue,
-      remove
+      get,
+      onValue
     } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-database.js";
 
-    // Your Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyCVcdGryuTGeMS2Aq9C2cqbeNmfnddDIu8",
       authDomain: "monthly-expense-tracker-179de.firebaseapp.com",
-      databaseURL: "https://monthly-expense-tracker-179de-default-rtdb.firebaseio.com",
+      databaseURL:
+        "https://monthly-expense-tracker-179de-default-rtdb.firebaseio.com",
       projectId: "monthly-expense-tracker-179de",
       storageBucket: "monthly-expense-tracker-179de.firebasestorage.app",
       messagingSenderId: "927646586236",
@@ -34,229 +26,114 @@
       measurementId: "G-CVR339GKH9"
     };
 
-    // Initialize Firebase
     const app = initializeApp(firebaseConfig);
-    getAnalytics(app);
     const db = getDatabase(app);
 
-    // Global state
     let budget = 0;
     let expenses = [];
+    const userKey = "shared_user";
 
-    // Load budget & expenses from RTDB
-    function loadData() {
-      // Budget listener
-      onValue(ref(db, 'budget'), snapshot => {
-        const val = snapshot.val();
-        if (val !== null) {
-          budget = val;
-          document.getElementById('budgetAmount').value = budget;
-        }
-        updateDisplay();
-      });
-
-      // Expenses listener
-      onValue(ref(db, 'expenses'), snapshot => {
-        const data = snapshot.val();
-        expenses = data ? Object.values(data) : [];
-        updateDisplay();
-      });
-    }
-
-    // Set budget in RTDB
-    function setBudget() {
-      const newBudget = parseFloat(document.getElementById('budgetAmount').value);
-      if (!newBudget || newBudget <= 0) {
-        alert('Please enter a valid budget amount');
-        return;
-      }
-      budget = newBudget;
-      set(ref(db, 'budget'), budget);
-      // Feedback animation
-      const btn = event.target;
-      const orig = btn.textContent;
-      btn.textContent = '✅ Budget Set!';
-      btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
-      setTimeout(() => {
-        btn.textContent = orig;
-        btn.style.background = '';
-      }, 2000);
-    }
-
-    // Add expense to RTDB under its timestamp ID
-    function addExpense() {
-      const category = document.getElementById('category').value;
-      const vendor = document.getElementById('vendor').value.trim();
-      const amount = parseFloat(document.getElementById('amount').value);
-      const note = document.getElementById('note').value.trim();
-      if (!vendor) {
-        alert('Please enter a vendor name');
-        return;
-      }
-      if (!amount || amount <= 0) {
-        alert('Please enter a valid amount');
-        return;
-      }
-      const id = Date.now();
-      const expense = {
-        id,
-        date: new Date().toISOString().split('T')[0],
-        time: new Date().toLocaleTimeString(),
-        category,
-        vendor,
-        amount,
-        note
-      };
-      set(ref(db, `expenses/${id}`), expense);
-      // Feedback
-      const btn = event.target;
-      const orig = btn.textContent;
-      btn.textContent = '✅ Added!';
-      setTimeout(() => btn.textContent = orig, 2000);
-    }
-
-    // Remove expense from RTDB
-    function deleteExpense(id) {
-      if (confirm('Are you sure you want to delete this expense?')) {
-        remove(ref(db, `expenses/${id}`));
-      }
-    }
-
-    // UI update functions (unchanged logic)
-    function updateDisplay() {
-      updateBudgetSummary();
-      updateRecentExpenses();
-      updateTopCategories();
-      updateTopVendors();
-      updateWeeklySummary();
-      updateMonthlySummary();
-    }
-    function updateHeaderMonth() {
-      const m = new Date().toLocaleDateString('en-US',{ month:'long'});
-      document.getElementById('headerTitle').innerHTML = `💰 Expense Tracker - ${m}`;
-    }
-    function updateBudgetSummary() {
-      const total = expenses.reduce((s,e)=>s+e.amount,0);
-      document.getElementById('budgetDisplay').textContent = `₹${budget.toLocaleString()}`;
-      document.getElementById('totalSpent').textContent   = `₹${total.toLocaleString()}`;
-      document.getElementById('remaining').textContent    = `₹${(budget-total).toLocaleString()}`;
-    }
-    function updateRecentExpenses(){
-      const c=document.getElementById('recentExpenses');
-      if(!expenses.length){
-        c.innerHTML=`<p style="text-align:center;color:#6b7280;padding:20px">No expenses added yet</p>`;
-        return;
-      }
-      const list=expenses.slice(-5).reverse().map(e=>`
-        <div class="expense-item">
-          <div class="expense-details">
-            <div class="expense-category">${e.category}</div>
-            <div class="expense-vendor">${new Date(e.date).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})} ${e.time}</div>
-            ${e.note?`<div style="font-size:.8rem;color:#6b7280;margin-top:4px">${e.note}</div>`:''}
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div class="expense-amount">₹${e.amount.toLocaleString()}</div>
-            <button class="btn btn-danger" onclick="deleteExpense(${e.id})">🗑️</button>
-          </div>
-        </div>`).join('');
-      c.innerHTML = list;
-    }
-    function updateTopCategories(){
-      const totals=expenses.reduce((a,e)=>(a[e.category]=(a[e.category]||0)+e.amount,a),{});
-      const total=expenses.reduce((s,e)=>s+e.amount,0);
-      const top=Object.entries(totals).sort(([,a],[,b])=>b-a).slice(0,3);
-      const tb=document.querySelector('#topCategoriesTable tbody');
-      if(!top.length){
-        tb.innerHTML=`<tr><td colspan="4" style="text-align:center;color:#6b7280">No data available</td></tr>`;
-        return;
-      }
-      tb.innerHTML=top.map(([cat,amt],i)=>`
-        <tr>
-          <td>${i+1}</td>
-          <td>${cat}</td>
-          <td>₹${amt.toLocaleString()}</td>
-          <td>${((amt/total)*100).toFixed(1)}%</td>
-        </tr>`).join('');
-    }
-    function updateTopVendors(){
-      const totals=expenses.reduce((a,e)=>(a[e.vendor]=(a[e.vendor]||0)+e.amount,a),{});
-      const total=expenses.reduce((s,e)=>s+e.amount,0);
-      const top=Object.entries(totals).sort(([,a],[,b])=>b-a).slice(0,3);
-      const tb=document.querySelector('#topVendorsTable tbody');
-      if(!top.length){
-        tb.innerHTML=`<tr><td colspan="4" style="text-align:center;color:#6b7280">No data available</td></tr>`;
-        return;
-      }
-      tb.innerHTML=top.map(([v,amt],i)=>`
-        <tr>
-          <td>${i+1}</td>
-          <td>${v}</td>
-          <td>₹${amt.toLocaleString()}</td>
-          <td>${((amt/total)*100).toFixed(1)}%</td>
-        </tr>`).join('');
-    }
-    function updateWeeklySummary(){
-      const w={};
-      expenses.forEach(e=>{
-        const d=new Date(e.date), s=new Date(d);
-        s.setDate(d.getDate()-d.getDay()); s.setHours(0,0,0,0);
-        const key=s.toISOString().split('T')[0];
-        w[key]=(w[key]||0)+e.amount;
-      });
-      const rows=Object.entries(w).sort(([,],[b])=>new Date(b)-new Date(a));
-      const tb=document.querySelector('#weeklySummaryTable tbody');
-      if(!rows.length){
-        tb.innerHTML=`<tr><td colspan="3" style="text-align:center;color:#6b7280">No data available</td></tr>`;
-        return;
-      }
-      tb.innerHTML=rows.map(([start,total],i=>{
-        const s=new Date(start), e=new Date(s);
-        e.setDate(s.getDate()+6);
-        return `
-          <tr>
-            <td>Week ${i+1}</td>
-            <td>${s.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})} - ${e.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})}</td>
-            <td>₹${total.toLocaleString()}</td>
-          </tr>`;
-      }).join('');
-    }
-    function updateMonthlySummary(){
-      const m={};
-      expenses.forEach(e=>{
-        const d=new Date(e.date), key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-        if(!m[key]) m[key]={total:0,cats:{}};
-        m[key].total+=e.amount;
-        m[key].cats[e.category]=(m[key].cats[e.category]||0)+e.amount;
-      });
-      const rows=Object.entries(m).sort(([,a],[,b])=>b.total-a.total);
-      const tb=document.querySelector('#monthlySummaryTable tbody');
-      if(!rows.length){
-        tb.innerHTML=`<tr><td colspan="4" style="text-align:center;color:#6b7280">No data available</td></tr>`;
-        return;
-      }
-      tb.innerHTML=rows.map(([month,data])=>{
-        const top=Object.entries(data.cats).sort(([,a],[,b])=>b-a)[0]||['N/A',0];
-        return `
-          <tr>
-            <td>${new Date(month+'-01').toLocaleDateString('en-US',{year:'numeric',month:'long'})}</td>
-            <td>₹${data.total.toLocaleString()}</td>
-            <td>${top[0]}</td>
-            <td>${top[1]?((top[1]/data.total)*100).toFixed(1)+'%':'0%'}</td>
-          </tr>`;
-      }).join('');
-    }
-
-    // Initialize on page load
-    window.onload = () => {
+    window.onload = function () {
       loadData();
       updateHeaderMonth();
     };
+
+    async function loadData() {
+      const snapshot = await get(ref(db, `users/${userKey}`));
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        budget = data.budget || 0;
+        expenses = data.expenses || [];
+      }
+      document.getElementById("budgetAmount").value = budget;
+      updateDisplay();
+    }
+
+    function saveData() {
+      set(ref(db, `users/${userKey}`), {
+        budget: budget,
+        expenses: expenses
+      });
+    }
+
+    function updateHeaderMonth() {
+      const date = new Date();
+      const monthName = date.toLocaleDateString("en-US", { month: "long" });
+      document.getElementById("headerTitle").innerHTML = `💰 Expense Tracker - ${monthName}`;
+    }
+
+    function setBudget() {
+      const budgetInput = document.getElementById("budgetAmount");
+      const newBudget = parseFloat(budgetInput.value);
+      if (!newBudget || newBudget <= 0) {
+        alert("Please enter a valid budget amount");
+        return;
+      }
+      budget = newBudget;
+      saveData();
+      updateDisplay();
+      const btn = event.target;
+      const originalText = btn.textContent;
+      btn.textContent = "✅ Budget Set!";
+      btn.style.background = "linear-gradient(135deg, #10b981, #059669)";
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.style.background = "linear-gradient(135deg, #4f46e5, #7c3aed)";
+      }, 2000);
+    }
+
+    function addExpense() {
+      const category = document.getElementById("category").value;
+      const vendor = document.getElementById("vendor").value;
+      const amount = parseFloat(document.getElementById("amount").value);
+      const note = document.getElementById("note").value;
+      if (!vendor.trim()) {
+        alert("Please enter a vendor name");
+        return;
+      }
+      if (!amount || amount <= 0) {
+        alert("Please enter a valid amount");
+        return;
+      }
+      const expense = {
+        id: Date.now(),
+        date: new Date().toISOString().split("T")[0],
+        time: new Date().toLocaleTimeString(),
+        category: category,
+        vendor: vendor.trim(),
+        amount: amount,
+        note: note.trim()
+      };
+      expenses.push(expense);
+      saveData();
+      updateDisplay();
+      document.getElementById("vendor").value = "";
+      document.getElementById("amount").value = "";
+      document.getElementById("note").value = "";
+      const btn = event.target;
+      const originalText = btn.textContent;
+      btn.textContent = "✅ Added!";
+      setTimeout(() => {
+        btn.textContent = originalText;
+      }, 2000);
+    }
+
+    function deleteExpense(id) {
+      if (confirm("Are you sure you want to delete this expense?")) {
+        expenses = expenses.filter((expense) => expense.id !== id);
+        saveData();
+        updateDisplay();
+      }
+    }
+
+    // Reuse your original updateDisplay, updateTopCategories, updateTopVendors, etc.
+    // You can paste the entire JS logic and HTML as-is from your original code here
   </script>
+  <style>
+    /* Paste your full original CSS styles here */
+  </style>
 </head>
 <body>
-  <div class="container">
-    <!-- … your existing body markup … -->
-    <!-- unchanged cards/forms/tables/buttons … -->
-  </div>
+  <!-- Paste your original full HTML body content here, unchanged -->
 </body>
 </html>
