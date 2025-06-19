@@ -1,1310 +1,428 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Expense Tracker</title>
-    <style>
-               * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+import React, { useState, useEffect, useMemo } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { Calculator, Plus, Trash2, Calendar, DollarSign, TrendingUp, Clock } from 'lucide-react';
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 10px;
-        }
+const LoanEMITracker = () => {
+  const [loanDetails, setLoanDetails] = useState({
+    loanAmount: 11100000, // ₹1.11 crore
+    tenureMonths: 300,
+    roi: 7.9,
+    emi: ''
+  });
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            /*background: rgba(255, 255, 255, 0.95);*/
-            background: rgba(243, 244, 246, 0.95);
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            /*overflow: hidden;*/
-            animation: slideUp 0.5s ease-out;
-        }
+  const [payments, setPayments] = useState([]);
 
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
+  // Calculate EMI if not provided
+  const calculateEMI = (principal, rate, tenure) => {
+    const monthlyRate = rate / (12 * 100);
+    const emi = (principal * monthlyRate * Math.pow(1 + monthlyRate, tenure)) / 
+                (Math.pow(1 + monthlyRate, tenure) - 1);
+    return Math.round(emi);
+  };
 
-        .header {
-            background: linear-gradient(135deg, #4f46e5, #7c3aed);
-            color: white;
-            padding: 20px;
-            text-align: center;
-        }
+  const standardEMI = useMemo(() => {
+    return loanDetails.emi || calculateEMI(loanDetails.loanAmount, loanDetails.roi, loanDetails.tenureMonths);
+  }, [loanDetails]);
 
-        .header h1 {
-            font-size: 2rem;
-            margin-bottom: 10px;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-        }
+  // Calculate total interest for standard loan
+  const totalInterestStandard = standardEMI * loanDetails.tenureMonths - loanDetails.loanAmount;
 
-        .main-content {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 20px;
-            padding: 20px;
-        }
+  // Generate amortization schedule with actual payments
+  const amortizationSchedule = useMemo(() => {
+    const schedule = [];
+    let balance = loanDetails.loanAmount;
+    const monthlyRate = loanDetails.roi / (12 * 100);
+    let totalInterestPaid = 0;
+    let totalPrincipalPaid = 0;
+    let totalPrepayment = 0;
+    let totalLumpsum = 0;
 
-        @media (min-width: 768px) {
-            .main-content {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
+    for (let month = 1; month <= loanDetails.tenureMonths && balance > 0; month++) {
+      const payment = payments.find(p => p.month === month) || {};
+      const emiPaid = payment.emi || standardEMI;
+      const prepayment = payment.prepayment || 0;
+      const lumpsum = payment.lumpsum || 0;
 
-        @media (min-width: 1024px) {
-            .main-content {
-                grid-template-columns: 1fr 1fr 1fr;
-            }
-        }
+      const interestPayment = balance * monthlyRate;
+      let principalPayment = Math.min(emiPaid - interestPayment, balance);
+      
+      // Ensure principal payment is not negative
+      principalPayment = Math.max(0, principalPayment);
+      
+      // Calculate new balance after EMI
+      let newBalance = balance - principalPayment;
+      
+      // Apply prepayment and lumpsum directly to remaining balance
+      const totalExtraPayment = prepayment + lumpsum;
+      newBalance = Math.max(0, newBalance - totalExtraPayment);
+      
+      // Track actual principal reduction
+      const actualPrincipalReduction = balance - newBalance;
+      
+      balance = newBalance;
+      totalInterestPaid += interestPayment;
+      totalPrincipalPaid += actualPrincipalReduction;
+      totalPrepayment += prepayment;
+      totalLumpsum += lumpsum;
 
-        @media (max-width: 480px) {
-  .card {
-    margin-left: 12px;
-    margin-right: 12px;
-  }
-}
+      schedule.push({
+        month,
+        date: payment.date || `Month ${month}`,
+        emi: emiPaid,
+        interest: interestPayment,
+        principal: principalPayment,
+        prepayment,
+        lumpsum,
+        balance: balance,
+        totalPaid: (schedule.length > 0 ? schedule[schedule.length - 1].totalPaid : 0) + emiPaid + prepayment + lumpsum,
+        cumulativeInterest: totalInterestPaid,
+        cumulativePrincipal: totalPrincipalPaid,
+        actualPrincipalReduction
+      });
 
-        .card, .card.full-width {
-  background: #ffffff;
-  border-radius: 15px;
-  padding: 20px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-  border: 1.5px ssolid #e5e7eb; 
-  margin-bottom: 20px;
-  transition: all 0.3s ease;
-}
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
-        }
-
-        .card h2 {
-            color: #4f46e5;
-            margin-bottom: 15px;
-            font-size: 1.3rem;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .input-group {
-            margin-bottom: 15px;
-        }
-
-        .input-group label {
-            display: block;
-            margin-bottom: 5px;
-            color: #374151;
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-
-        .input-group input,
-        .input-group select,
-        .input-group textarea {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e5e7eb;
-            border-radius: 10px;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            background: #f9fafb;
-        }
-
-        .input-group input:focus,
-        .input-group select:focus,
-        .input-group textarea:focus {
-            outline: none;
-            border-color: #4f46e5;
-            background: white;
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-        }
-
-        .btn {
-            background: linear-gradient(135deg, #4f46e5, #7c3aed);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 10px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            width: 100%;
-            margin-top: 10px;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(79, 70, 229, 0.3);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .btn-secondary {
-            background: linear-gradient(135deg, #10b981, #059669);
-        }
-
-        .btn-danger {
-            background: linear-gradient(135deg, #ef4444, #dc2626);
-            padding: 8px 16px;
-            font-size: 0.9rem;
-            width: auto;
-            margin: 0;
-        }
-
-        .budget-summary {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 10px;
-    margin-top: 10px;
-}
-.budget-item {
-    text-align: center;
-    padding: 8px 4px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
-}
-.budget-item h3 {
-    font-size: 0.78rem;
-    color: #6b7280;
-    margin-bottom: 2px;
-}
-.budget-item .amount {
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: #1f2937;
-}
-@media (max-width: 480px) {
-    .budget-summary {
-        gap: 6px;
-        margin-top: 8px;
+      if (balance <= 0) break;
     }
-    .budget-item {
-        padding: 4px 2px;
-        border-radius: 8px;
+
+    return schedule;
+  }, [loanDetails, payments, standardEMI]);
+
+  // Calculate progress metrics
+  const progressMetrics = useMemo(() => {
+    if (amortizationSchedule.length === 0) {
+      return {
+        loanProgress: 0,
+        principalPaidPercent: 0,
+        interestPaidPercent: 0,
+        principalPaid: 0,
+        interestPaid: 0,
+        remainingBalance: loanDetails.loanAmount,
+        remainingTenure: loanDetails.tenureMonths,
+        interestSaved: 0,
+        monthsSaved: 0
+      };
     }
-    .budget-item h3 {
-        font-size: 0.7rem;
-        margin-bottom: 0;
-    }
-    .budget-item .amount {
-        font-size: 1rem;
-    }
-}
 
-
-        .budget-item {
-            text-align: center;
-            padding: 15px;
-            border-radius: 10px;
-            background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
-        }
-
-        .budget-item.budget {
-            background: linear-gradient(135deg, #dbeafe, #bfdbfe);
-        }
-
-        .budget-item.spent {
-            background: linear-gradient(135deg, #fee2e2, #fecaca);
-        }
-
-        .budget-item.remaining {
-            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-        }
-
-        .budget-item h3 {
-            font-size: 0.9rem;
-            color: #6b7280;
-            margin-bottom: 5px;
-        }
-
-        .budget-item .amount {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #1f2937;
-        }
-
-        .table-container {
-            overflow-x: auto;
-            margin-top: 15px;
-            border-radius: 10px;
-            border: 1px solid #e5e7eb;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-
-        th {
-            background: linear-gradient(135deg, #4f46e5, #7c3aed);
-            color: white;
-            padding: 12px 8px;
-            text-align: left;
-            font-weight: 600;
-        }
-
-        td {
-            padding: 12px 8px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        tr:hover {
-            background: #f9fafb;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 20px;
-            grid-column: 1 / -1;
-        }
-
-        @media (min-width: 768px) {
-            .stats-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-
-        .icon {
-            font-size: 1.2rem;
-        }
-
-        .full-width {
-            grid-column: 1 / -1;
-        }
-
-        .download-buttons {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .download-buttons .btn {
-            flex: 1;
-            min-width: 120px;
-        }
-
-        @media (max-width: 480px) {
-            .header h1 {
-                font-size: 1.5rem;
-            }
-            
-            .main-content {
-                padding: 15px;
-                gap: 15px;
-            }
-            
-            .card {
-                padding: 15px;
-            }
-            
-            table {
-                font-size: 0.8rem;
-            }
-            
-            th, td {
-                padding: 8px 4px;
-            }
-        }
-
-        .expense-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 0;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .expense-item:last-child {
-            border-bottom: none;
-        }
-
-        .expense-details {
-            flex-grow: 1;
-        }
-
-        .expense-category {
-            font-weight: 600;
-            color: #4f46e5;
-        }
-
-        .expense-vendor {
-            color: #6b7280;
-            font-size: 0.9rem;
-        }
-
-        .expense-amount {
-            font-weight: bold;
-            color: #1f2937;
-            margin-right: 10px;
-        }
-
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #3498db;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .btn, .btn-danger {
-    height: 48px;
-    min-width: 120px;
-    font-size: 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-    box-sizing: border-box;
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
-    padding-top: 0;
-    padding-bottom: 0;
-}
-@media (max-width: 480px) {
-    .card {
-        border: 2px solid #cbd5e1; /* slightly darker */
-    }
-}
-
-.btn-square {
-    width: 36px !important;
-    height: 36px !important;
-    min-width: 0 !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    border-radius: 8px !important;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1rem;
-    margin: 0 !important;
-}
-
-
-.input-group textarea {
-    height: 38px;
-    padding-top: 8px;
-    padding-bottom: 8px;
-    border-radius: 10px;
-    resize: none;
-    font-size: 1rem;
-}
-
-.btn-sm {
-    font-size: 0.96em !important;
-    padding: 4px 16px !important;
-    min-width: unset !important;
-    height: 32px !important;
-    border-radius: 8px !important;
-}
-    </style>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-
-
-
-</head>
-<body>
-    <!-- PIN LOCK SCREEN -->
-    <div id="pinLockScreen" style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:10000;background:#f3f4f6;display:flex;align-items:center;justify-content:center;flex-direction:column;">
-        <h2 style="margin-bottom:16px;color:#4f46e5;">Please enter the PIN </h2>
-        <input id="pinInput" type="password" placeholder="Enter PIN" style="padding:12px 16px;font-size:1.2rem;border-radius:10px;border:2px solid #e5e7eb;margin-bottom:12px;width:220px;text-align:center;" maxlength="10" autofocus>
-        <button onclick="unlockApp()" style="padding:12px 32px;font-size:1.1rem;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;border:none;border-radius:10px;cursor:pointer;">Unlock</button>
-        <div id="pinError" style="color:#dc2626;margin-top:10px;height:20px;"></div>
-    </div>
-
-    <div class="container" id="appContent" style="display:none;">
-        <div class="header">
-            <h1 id="headerTitle">💰 Expense Tracker</h1>
-        </div>
-
-        <div class="main-content">
-            <div class="card">
-                <h2><span class="icon">🎯</span> Set Monthly Budget</h2>
-                <div class="input-group">
-                    <label for="budgetAmount">Budget Amount (₹)</label>
-                    <input type="number" id="budgetAmount" placeholder="Enter your monthly budget">
-                </div>
-                <div style="display:flex;gap:10px;align-items:stretch;margin-bottom:0;">
-  <button class="btn" style="flex:1;min-width:100px;height:38px;font-size:0.85rem;line-height:1;">Set Budget</button>
-<button class="btn btn-danger" style="flex:1;min-width:100px;height:38px;font-size:0.85rem;line-height:1;">Reset Budget</button>
-</div>
-
-
-</div>
-
-
-                <div id="budgetIndicatorWrapper" style="margin-top:4px;">
-  <div style="display:flex;align-items:center;gap:10px;">
-    <span style="font-size:1.2em;">📊</span>
-    <div style="flex:1;position:relative;background:#e5e7eb;border-radius:8px;height:24px;overflow:hidden;">
-      <div id="budgetIndicatorBar" style="height:100%;background:#10b981;width:100%;border-radius:8px 0 0 8px;transition:width 0.4s,background 0.4s;"></div>
-      <span id="budgetIndicatorText" style="position:absolute;left:0;right:0;text-align:center;top:0;line-height:24px;font-weight:bold;color:#1f2937;font-size:0.96em;">100% left</span>
-    </div>
-  </div>
-</div>
-
-                
-                <div class="budget-summary">
-                    <div class="budget-item budget">
-                        <h3>Budget</h3>
-                        <div class="amount" id="budgetDisplay">₹0</div>
-                    </div>
-                    <div class="budget-item spent">
-                        <h3>Expenses</h3>
-                        <div class="amount" id="totalSpent">₹0</div>
-                    </div>
-                    <div class="budget-item remaining">
-                        <h3>Balance</h3>
-                        <div class="amount" id="remaining">₹0</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2><span class="icon">➕</span> Add Expense</h2>
-                <div class="input-group">
-                    <label for="category">Category</label>
-                    <select id="category">
-                        <option value="Grocery">Grocery</option>
-                        <option value="Bills">Bills</option>
-                        <option value="Online shopping">Online shopping</option>
-                        <option value="Travelling">Travelling</option>
-                        <option value="Food">Food</option>
-                        <option value="Medical expenses">Medical expenses</option>
-                        <option value="Debt">Debt</option>
-                        <option value="Petrol">Petrol</option>
-                        <option value="Home expenses other than grocery">Home expenses other than grocery</option>
-                        <option value="Maintenance">Maintenance</option>
-                        <option value="EMI">EMI</option>
-                        <option value="Investment">Investment</option>
-                        <option value="Entertainment">Entertainment</option>
-                        <option value="Others">Others</option>
-                    </select>
-                </div>
-                <div class="input-group">
-                    <label for="vendor">Vendor</label>
-                    <input type="text" id="vendor" placeholder="Enter vendor name">
-                </div>
-                <div class="input-group">
-                    <label for="amount">Amount (₹)</label>
-                    <input type="number" id="amount" placeholder="Enter amount">
-                </div>
-                <div class="input-group">
-                    <label for="note">Note</label>
-                    <textarea id="note" rows="1" placeholder="Add a note"></textarea>
-                </div>
-                <div class="input-group">
-    <label>Added By</label>
-    <div style="display:flex;gap:20px;align-items:center;">
-        <label style="display:flex;align-items:center;">
-            <input type="radio" name="addedByRadio" value="Akshay" id="addedByAkshay" checked style="margin-right:6px;">
-            Akshay
-        </label>
-        <label style="display:flex;align-items:center;">
-            <input type="radio" name="addedByRadio" value="Achal" id="addedByAchal" style="margin-right:6px;">
-            Achal
-        </label>
-    </div>
-</div>
-                <button class="btn btn-secondary" id="addExpenseBtn" onclick="addExpense()">Add Expense</button>
-            </div>
-
-            <div class="card full-width">
-                <h2><span class="icon">📋</span> Recent Expenses</h2>
-                <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
-    <label for="startDate" style="font-size:0.95em;">From:</label>
-    <input type="date" id="startDate" style="padding:6px;border-radius:6px;">
-    <label for="endDate" style="font-size:0.95em;">To:</label>
-    <input type="date" id="endDate" style="padding:6px;border-radius:6px;">
-</div>
-<div style="margin-bottom:6px;">
-    <input
-        type="text"
-        id="searchExpenseInput"
-        placeholder="🔎 Search expenses (vendor, note, category...)"
-        style="width:100%;padding:10px;border-radius:8px;border:1.5px solid #e5e7eb;font-size:1rem;"
-    />
-</div>
-<!-- BUTTONS BELOW SEARCH BAR -->
-<div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:12px;">
-    <button class="btn btn-secondary btn-sm" style="padding:4px 16px;min-width:unset;font-size:0.97em;border-radius:8px;" onclick="searchExpenses()">Search</button>
-    <button class="btn btn-danger btn-sm" style="padding:4px 16px;min-width:unset;font-size:0.97em;border-radius:8px;" onclick="clearExpenseSearch()">Clear</button>
-</div>
-
-
-                <div id="recentExpenses">
-                    <p style="text-align: center; color: #6b7280; padding: 20px;">No expenses added yet</p>
-                </div>
-            </div>
-
-            <div class="stats-grid">
-                <div class="card">
-                    <h2><span class="icon">🏆</span> Top 3 Categories</h2>
-                    <div class="table-container">
-                        <table id="topCategoriesTable">
-                            <thead>
-                                <tr>
-                                    <th>Rank</th>
-                                    <th>Category</th>
-                                    <th>Amount</th>
-                                    <th>%</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr><td colspan="4" style="text-align: center; color: #6b7280;">No data available</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <h2><span class="icon">🛍️</span> Top 3 Vendors</h2>
-                    <div class="table-container">
-                        <table id="topVendorsTable">
-                            <thead>
-                                <tr>
-                                    <th>Rank</th>
-                                    <th>Vendor</th>
-                                    <th>Amount</th>
-                                    <th>%</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr><td colspan="4" style="text-align: center; color: #6b7280;">No data available</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-    <h2><span class="icon">📊</span> Weekly Summary</h2>
-    <canvas id="weeklySummaryChart" style="width:100%;max-width:600px;height:250px;"></canvas>
-</div>
-
-
-            <div class="card">
-    <h2><span class="icon">📈</span> Monthly Summary</h2>
-   <canvas id="monthlySummaryChart" style="width:100%;max-width:600px;height:250px;"></canvas>
-</div>
-<div class="card full-width">
-    <h2><span class="icon">👥</span> Expenses by Person</h2>
-    <canvas id="byPersonChart" style="width:100%;max-width:600px;height:250px;"></canvas>
-</div>
-            <div class="card full-width">
-                <h2><span class="icon">💾</span> Export Data</h2>
-                <div class="download-buttons">
-                    <button class="btn" onclick="downloadCSV()">📄 Download CSV</button>
-                    <button class="btn" onclick="downloadPDF()">📝 Download PDF</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    const lastEntry = amortizationSchedule[amortizationSchedule.length - 1];
+    const remainingBalance = lastEntry.balance;
+    const principalPaid = loanDetails.loanAmount - remainingBalance;
+    const interestPaid = lastEntry.cumulativeInterest;
+    const remainingTenure = remainingBalance > 0 ? loanDetails.tenureMonths - amortizationSchedule.length : 0;
     
-
-
-    <script>
-        // === PIN PROTECTION ===
-        const CORRECT_PIN = "0277";
-        function unlockApp() {
-    const entered = document.getElementById('pinInput').value;
-    if (entered === CORRECT_PIN) {
-        document.getElementById('pinLockScreen').style.display = 'none';
-        document.getElementById('appContent').style.display = '';
-        updateHeaderMonth();  // ✅ now runs at the right time
-        loadData();           // already present
-    } else {
-        document.getElementById('pinError').textContent = "Incorrect PIN. Try again.";
-        document.getElementById('pinInput').value = '';
+    // Calculate what total interest would be if paying standard EMI for full tenure
+    const totalStandardInterest = (standardEMI * loanDetails.tenureMonths) - loanDetails.loanAmount;
+    
+    // Calculate projected remaining interest with current balance and standard EMI
+    let projectedRemainingInterest = 0;
+    if (remainingBalance > 0 && remainingTenure > 0) {
+      const monthlyRate = loanDetails.roi / (12 * 100);
+      let tempBalance = remainingBalance;
+      for (let i = 0; i < remainingTenure && tempBalance > 0; i++) {
+        const interest = tempBalance * monthlyRate;
+        const principal = Math.min(standardEMI - interest, tempBalance);
+        if (principal <= 0) break;
+        projectedRemainingInterest += interest;
+        tempBalance -= principal;
+      }
     }
-}
+    
+    const projectedTotalInterest = interestPaid + projectedRemainingInterest;
+    const interestSaved = Math.max(0, totalStandardInterest - projectedTotalInterest);
+    const monthsSaved = remainingBalance <= 0 ? loanDetails.tenureMonths - amortizationSchedule.length : 0;
 
-
-        // === FIREBASE CONFIGURATION ===
-        // !!! REPLACE WITH YOUR OWN FIREBASE CONFIG !!!
-        const firebaseConfig = {
-      apiKey: "AIzaSyCVcdGryuTGeMS2Aq9C2cqbeNmfnddDIu8",
-      authDomain: "monthly-expense-tracker-179de.firebaseapp.com",
-      databaseURL:
-        "https://monthly-expense-tracker-179de-default-rtdb.firebaseio.com",
-      projectId: "monthly-expense-tracker-179de",
-      storageBucket: "monthly-expense-tracker-179de.firebasestorage.app",
-      messagingSenderId: "927646586236",
-      appId: "1:927646586236:web:fc56a0334a31464cf000f9",
-      measurementId: "G-CVR339GKH9"
+    return {
+      loanProgress: ((loanDetails.loanAmount - remainingBalance) / loanDetails.loanAmount) * 100,
+      principalPaidPercent: (principalPaid / loanDetails.loanAmount) * 100,
+      interestPaidPercent: totalStandardInterest > 0 ? (interestPaid / totalStandardInterest) * 100 : 0,
+      principalPaid,
+      interestPaid,
+      remainingBalance,
+      remainingTenure,
+      interestSaved,
+      monthsSaved
     };
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-        let budget = 0;
-        let expenses = [];
-        const sharedUserId = 'shared_users_data'; 
-        let editingExpenseId = null;
+  }, [amortizationSchedule, loanDetails, standardEMI]);
 
-        // document.addEventListener('DOMContentLoaded', () => {
-        //     // App will only show after correct PIN
-        //     // (Data will load only after unlocked)
-        //     updateHeaderMonth();
-        // });
+  const addPayment = () => {
+    const newPayment = {
+      id: Date.now(),
+      month: payments.length + 1,
+      date: new Date().toISOString().split('T')[0],
+      emi: standardEMI,
+      prepayment: 0,
+      lumpsum: 0
+    };
+    setPayments([...payments, newPayment]);
+  };
 
-        // // PIN unlock triggers data load
-        // document.getElementById('pinLockScreen').addEventListener('transitionend', function(e){
-        //     if (document.getElementById('pinLockScreen').style.display === 'none') {
-        //         loadData();
-        //     }
-        // });
-        function updateHeaderMonth() {
-            const date = new Date();
-            const monthName = date.toLocaleDateString('en-US', { month: 'long' });
-            document.getElementById('headerTitle').innerHTML = `💰 Expense Tracker - ${monthName}`;
-        }
-        function loadData() {
-            const userRef = database.ref('users/' + sharedUserId);
+  const updatePayment = (id, field, value) => {
+    setPayments(payments.map(payment => 
+      payment.id === id ? { ...payment, [field]: parseFloat(value) || 0 } : payment
+    ));
+  };
 
-            // Load Budget
-            userRef.child('budget').once('value', (snapshot) => {
-                const savedBudget = snapshot.val();
-                if (savedBudget !== null) {
-                    budget = parseFloat(savedBudget);
-                    document.getElementById('budgetAmount').value = budget;
-                } else {
-                    budget = 0;
-                    document.getElementById('budgetAmount').value = '';
-                }
-                updateBudgetSummary();
-            });
+  const deletePayment = (id) => {
+    setPayments(payments.filter(payment => payment.id !== id));
+  };
 
-            // Load Expenses
-            userRef.child('expenses').on('value', (snapshot) => {
-                expenses = [];
-                snapshot.forEach((childSnapshot) => {
-                    expenses.push({
-                        id: childSnapshot.key,
-                        ...childSnapshot.val()
-                    });
-                });
-                expenses.sort((a, b) => b.id - a.id); // Newest first
-                updateDisplay();
-            });
-        }
+  const formatCurrency = (amount) => {
+    return '₹' + new Intl.NumberFormat('en-IN', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
 
-        function setBudget(event) {
-            const budgetInput = document.getElementById('budgetAmount');
-            const newBudget = parseFloat(budgetInput.value);
-            if (!newBudget || newBudget <= 0) {
-                alert('Please enter a valid budget amount');
-                return;
-            }
-            budget = newBudget;
-            database.ref('users/' + sharedUserId + '/budget').set(budget)
-                .then(() => {
-                    updateDisplay();
-                    const btn = event.target;
-                    const originalText = btn.textContent;
-                    btn.textContent = '✅ Budget Set!';
-                    btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
-                    setTimeout(() => {
-                        btn.textContent = originalText;
-                        btn.style.background = 'linear-gradient(135deg, #4f46e5, #7c3aed)';
-                    }, 2000);
-                })
-                .catch((error) => {
-                    alert("Failed to set budget. Please try again.");
-                });
-        }
-        function resetBudget() {
-            if (!confirm('Are you sure you want to reset the budget?')) return;
-            database.ref('users/' + sharedUserId + '/budget').remove()
-                .then(() => {
-                    budget = 0;
-                    document.getElementById('budgetAmount').value = '';
-                    updateBudgetSummary();
-                    alert('Budget has been reset.');
-                })
-                .catch((error) => {
-                    alert("Failed to reset budget. Please try again.");
-                });
-        }
-        function addExpense() {
-            const category = document.getElementById('category').value;
-            const vendor = document.getElementById('vendor').value;
-            const amount = parseFloat(document.getElementById('amount').value);
-            const note = document.getElementById('note').value;
-            const addedBy = document.querySelector('input[name="addedByRadio"]:checked').value;
+  const ProgressBar = ({ label, percentage, amount, color = "bg-blue-500" }) => (
+    <div className="bg-white p-4 rounded-lg shadow-sm border">
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-sm font-medium text-gray-700">{label}</span>
+        <span className="text-sm text-gray-500">{percentage.toFixed(1)}%</span>
+      </div>
+      <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+        <div 
+          className={`h-3 rounded-full ${color} transition-all duration-300`}
+          style={{ width: `${Math.min(percentage, 100)}%` }}
+        ></div>
+      </div>
+      <div className="text-sm font-semibold text-gray-800">{formatCurrency(amount)}</div>
+    </div>
+  );
 
-            if (!vendor.trim()) {
-                alert('Please enter a vendor name');
-                return;
-            }
-            if (!amount || amount <= 0) {
-                alert('Please enter a valid amount');
-                return;
-            }
-            const newExpenseRef = database.ref('users/' + sharedUserId + '/expenses').push();
-            const expense = {
-                date: new Date().toISOString().split('T')[0],
-                time: new Date().toLocaleTimeString(),
-                category: category,
-                vendor: vendor.trim(),
-                amount: amount,
-                note: note.trim(),
-                addedBy: addedBy
-            };
-            newExpenseRef.set(expense)
-                .then(() => {
-                    document.getElementById('vendor').value = '';
-                    document.getElementById('amount').value = '';
-                    document.getElementById('note').value = '';
-                  document.getElementById("addedByAkshay").checked = true; 
-                    const btn = document.getElementById('addExpenseBtn');
-                    const originalText = btn.textContent;
-                    btn.textContent = '✅ Added!';
-                    setTimeout(() => {
-                        btn.textContent = originalText;
-                    }, 2000);
-                })
-                .catch((error) => {
-                    alert("Failed to add expense. Please try again.");
-                });
-        }
-        function editExpense(id) {
-            const exp = expenses.find(e => e.id === id);
-            if (!exp) return;
-            editingExpenseId = id;
-            document.getElementById('category').value = exp.category;
-            document.getElementById('vendor').value = exp.vendor;
-            document.getElementById('amount').value = exp.amount;
-            document.getElementById('note').value = exp.note || '';
-            if (exp.addedBy === "Achal") {
-    document.getElementById("addedByAchal").checked = true;
-} else {
-    document.getElementById("addedByAkshay").checked = true;
-}
+  return (
+    <div className="max-w-7xl mx-auto p-6 bg-gray-50 min-h-screen">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+          <Calculator className="text-blue-600" />
+          Comprehensive Loan/EMI Tracker
+        </h1>
+        <p className="text-gray-600">Track your loan progress with detailed analytics and payment history</p>
+      </div>
 
-            const btn = document.getElementById('addExpenseBtn');
-            btn.textContent = "Update Expense";
-            btn.onclick = updateExpense;
-        }
-        function updateExpense() {
-            if (!editingExpenseId) return;
-            const category = document.getElementById('category').value;
-            const vendor = document.getElementById('vendor').value;
-            const amount = parseFloat(document.getElementById('amount').value);
-            const note = document.getElementById('note').value;
-            const addedBy = document.querySelector('input[name="addedByRadio"]:checked').value;
-            // Optionally, keep original date/time instead of new
-            const expOrig = expenses.find(e => e.id === editingExpenseId);
-            const updatedExpense = {
-                date: expOrig ? expOrig.date : new Date().toISOString().split('T')[0],
-                time: expOrig ? expOrig.time : new Date().toLocaleTimeString(),
-                category,
-                vendor,
-                amount,
-                note,
-                addedBy
-            };
-            database.ref('users/' + sharedUserId + '/expenses/' + editingExpenseId)
-                .set(updatedExpense)
-                .then(() => {
-                    editingExpenseId = null;
-                    document.getElementById('vendor').value = '';
-                    document.getElementById('amount').value = '';
-                    document.getElementById('note').value = '';
-                    document.getElementById("addedByAkshay").checked = true; 
-                    const btn = document.getElementById('addExpenseBtn');
-                    btn.textContent = "Add Expense";
-                    btn.onclick = addExpense;
-                })
-                .catch((error) => {
-                    alert("Failed to update expense. Please try again.");
-                });
-        }
-        function deleteExpense(id) {
-            if (confirm('Are you sure you want to delete this expense?')) {
-                database.ref('users/' + sharedUserId + '/expenses/' + id).remove()
-                    .then(() => {})
-                    .catch((error) => {
-                        alert("Failed to delete expense. Please try again.");
-                    });
-            }
-        }
-        function updateDisplay() {
-            updateBudgetSummary();
-            updateRecentExpenses();
-            updateTopCategories();
-            updateTopVendors();
-            updateWeeklySummary();
-            updateMonthlySummary();
-            updateByPersonChart();
-
-        }
-function clearExpenseSearch() {
-    document.getElementById('startDate').value = '';
-    document.getElementById('endDate').value = '';
-    document.getElementById('searchExpenseInput').value = '';
-    searchKeyword = "";
-    updateRecentExpenses();
-}
-
-        function updateBudgetSummary() {
-    const totalSpent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-    const remaining = budget - totalSpent;
-    
-    document.getElementById('budgetDisplay').textContent = `₹${budget.toLocaleString()}`;
-    document.getElementById('totalSpent').textContent = `₹${totalSpent.toLocaleString()}`;
-    document.getElementById('remaining').textContent = `₹${remaining.toLocaleString()}`;
-    
-    // --- Budget Battery Indicator ---
-    const bar = document.getElementById('budgetIndicatorBar');
-const text = document.getElementById('budgetIndicatorText');
-
-if (budget > 0) {
-    let percent = ((remaining / budget) * 100);
-    percent = Math.max(0, Math.min(100, percent)); // Clamp between 0–100
-    bar.style.width = percent + "%";
-    text.textContent = `${percent.toFixed(0)}% left`;
-
-    const spentRatio = totalSpent / budget;
-
-    // ✅ Change color based on spent %
-    if (spentRatio >= 0.9) {
-        bar.style.background = "#ef4444"; // red
-    } else if (spentRatio >= 0.5) {
-        bar.style.background = "#f97316"; // orange
-    } else {
-        bar.style.background = "#10b981"; // green
-    }
-
-} else {
-    bar.style.width = "100%";
-    bar.style.background = "#e5e7eb";
-    text.textContent = "No budget";
-}
-}
-
-let searchKeyword = "";
-function searchExpenses() {
-    const input = document.getElementById('searchExpenseInput');
-    searchKeyword = input.value.trim().toLowerCase();
-
-    // Get date range values
-    const startDate = document.getElementById('startDate').value;
-    const endDate = document.getElementById('endDate').value;
-
-    updateRecentExpenses(startDate, endDate);
-}
-
-
-        function updateRecentExpenses(startDate, endDate) {
-    const container = document.getElementById('recentExpenses');
-    let filteredExpenses = expenses;
-        // Filter by date range if provided
-    if (startDate) {
-        filteredExpenses = filteredExpenses.filter(exp => exp.date >= startDate);
-    }
-    if (endDate) {
-        filteredExpenses = filteredExpenses.filter(exp => exp.date <= endDate);
-    }
-
-    if (searchKeyword) {
-        filteredExpenses = expenses.filter(exp =>
-            (exp.vendor && exp.vendor.toLowerCase().includes(searchKeyword)) ||
-            (exp.note && exp.note.toLowerCase().includes(searchKeyword)) ||
-            (exp.category && exp.category.toLowerCase().includes(searchKeyword)) ||
-            (exp.addedBy && exp.addedBy.toLowerCase().includes(searchKeyword)) ||
-            (exp.amount && exp.amount.toString().includes(searchKeyword))
-        );
-    } else {
-        filteredExpenses = expenses.slice(0, 5);
-    }
-
-    if (filteredExpenses.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #6b7280; padding: 20px;">No expenses found</p>';
-        return;
-    }
-
-    container.innerHTML = filteredExpenses.map(expense => `
-        <div class="expense-item">
-            <div class="expense-details">
-                <div class="expense-category">${expense.category}</div>
-                <div class="expense-vendor">
-                    ${new Date(expense.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })} ${expense.vendor}
-                    ${expense.addedBy ? ` &bull; <span style="color:#059669;">${expense.addedBy}</span>` : ''}
-                </div>
-                ${expense.note ? `<div style="font-size: 0.8rem; color: #6b7280; margin-top: 4px;">${expense.note}</div>` : ''}
-            </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <div class="expense-amount">₹${expense.amount.toLocaleString()}</div>
-                <button class="btn btn-secondary btn-square" title="Edit" onclick="editExpense('${expense.id}')">✏️</button>
-                <button class="btn btn-danger btn-square" title="Delete" onclick="deleteExpense('${expense.id}')">🗑️</button>
-
-
-            </div>
+      {/* Loan Details Input */}
+      <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+          <DollarSign className="text-green-600" />
+          Loan Details
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Loan Amount (₹)</label>
+            <input
+              type="number"
+              value={loanDetails.loanAmount}
+              onChange={(e) => setLoanDetails({...loanDetails, loanAmount: parseFloat(e.target.value) || 0})}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tenure (Months)</label>
+            <input
+              type="number"
+              value={loanDetails.tenureMonths}
+              onChange={(e) => setLoanDetails({...loanDetails, tenureMonths: parseInt(e.target.value) || 0})}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Rate of Interest (%)</label>
+            <input
+              type="number"
+              step="0.1"
+              value={loanDetails.roi}
+              onChange={(e) => setLoanDetails({...loanDetails, roi: parseFloat(e.target.value) || 0})}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">EMI (Optional)</label>
+            <input
+              type="number"
+              placeholder={`Auto: ${formatCurrency(standardEMI)}`}
+              value={loanDetails.emi}
+              onChange={(e) => setLoanDetails({...loanDetails, emi: parseFloat(e.target.value) || ''})}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
         </div>
-    `).join('');
-}
+      </div>
 
-        // ... (keep the rest of your original summary/analysis/export code, with only the downloadPDF changed to TXT below)
-        function updateTopCategories() {
-            const categoryTotals = expenses.reduce((acc, expense) => {
-                acc[expense.category] = (acc[expense.category] || 0) + expense.amount;
-                return acc;
-            }, {});
-            const totalSpent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-            const sortedCategories = Object.entries(categoryTotals)
-                .sort(([,a], [,b]) => b - a)
-                .slice(0, 3);
-            const tbody = document.getElementById('topCategoriesTable').querySelector('tbody');
-            if (sortedCategories.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #6b7280;">No data available</td></tr>';
-                return;
-            }
-            tbody.innerHTML = sortedCategories.map(([category, amount], index) => `
-                <tr>
-                    <td>${index + 1}</td>
-                    <td>${category}</td>
-                    <td>₹${amount.toLocaleString()}</td>
-                    <td>${((amount / totalSpent) * 100).toFixed(1)}%</td>
+      {/* Chart */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <ProgressBar 
+          label="Loan Progress" 
+          percentage={progressMetrics.loanProgress} 
+          amount={loanDetails.loanAmount - progressMetrics.remainingBalance}
+          color="bg-blue-500"
+        />
+        <ProgressBar 
+          label="Principal Paid" 
+          percentage={progressMetrics.principalPaidPercent} 
+          amount={progressMetrics.principalPaid}
+          color="bg-green-500"
+        />
+        <ProgressBar 
+          label="Interest Paid" 
+          percentage={progressMetrics.interestPaidPercent} 
+          amount={progressMetrics.interestPaid}
+          color="bg-red-500"
+        />
+      </div>
+
+      {/* Key Metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white p-4 rounded-lg shadow-sm border text-center">
+          <Clock className="mx-auto text-orange-500 mb-2" size={24} />
+          <div className="text-sm text-gray-600">Remaining Tenure</div>
+          <div className="text-lg font-bold text-gray-800">{progressMetrics.remainingTenure} months</div>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow-sm border text-center">
+          <TrendingUp className="mx-auto text-green-500 mb-2" size={24} />
+          <div className="text-sm text-gray-600">Interest Saved</div>
+          <div className="text-lg font-bold text-green-600">{formatCurrency(progressMetrics.interestSaved)}</div>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow-sm border text-center">
+          <Calendar className="mx-auto text-blue-500 mb-2" size={24} />
+          <div className="text-sm text-gray-600">Months Saved</div>
+          <div className="text-lg font-bold text-blue-600">{progressMetrics.monthsSaved}</div>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow-sm border text-center">
+          <DollarSign className="mx-auto text-purple-500 mb-2" size={24} />
+          <div className="text-sm text-gray-600">Remaining Balance</div>
+          <div className="text-lg font-bold text-gray-800">{formatCurrency(progressMetrics.remainingBalance)}</div>
+        </div>
+      </div>
+
+      {/* Progress Bars */}
+      <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Interest vs Principal Breakup</h3>
+        <div style={{ width: '100%', height: '300px' }}>
+          <ResponsiveContainer>
+            <LineChart data={amortizationSchedule.slice(0, 60)}> {/* Show first 5 years */}
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis tickFormatter={(value) => `₹${(value/1000).toFixed(0)}k`} />
+              <Tooltip formatter={(value) => formatCurrency(value)} />
+              <Legend />
+              <Line type="monotone" dataKey="interest" stroke="#ef4444" name="Interest" strokeWidth={2} />
+              <Line type="monotone" dataKey="principal" stroke="#22c55e" name="Principal" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Payment Input Table */}
+      <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-gray-800">Monthly Payment Input</h3>
+          <button
+            onClick={addPayment}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2"
+          >
+            <Plus size={16} />
+            Add Payment
+          </button>
+        </div>
+        
+        {payments.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse border border-gray-300">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="border border-gray-300 p-2 text-left">Month</th>
+                  <th className="border border-gray-300 p-2 text-left">Date</th>
+                  <th className="border border-gray-300 p-2 text-left">EMI Paid</th>
+                  <th className="border border-gray-300 p-2 text-left">Prepayment</th>
+                  <th className="border border-gray-300 p-2 text-left">Lumpsum</th>
+                  <th className="border border-gray-300 p-2 text-left">Action</th>
                 </tr>
-            `).join('');
-        }
-        function updateTopVendors() {
-            const vendorTotals = expenses.reduce((acc, expense) => {
-                acc[expense.vendor] = (acc[expense.vendor] || 0) + expense.amount;
-                return acc;
-            }, {});
-            const totalSpent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-            const sortedVendors = Object.entries(vendorTotals)
-                .sort(([,a], [,b]) => b - a)
-                .slice(0, 3);
-            const tbody = document.getElementById('topVendorsTable').querySelector('tbody');
-            if (sortedVendors.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #6b7280;">No data available</td></tr>';
-                return;
-            }
-            tbody.innerHTML = sortedVendors.map(([vendor, amount], index) => `
-                <tr>
-                    <td>${index + 1}</td>
-                    <td>${vendor}</td>
-                    <td>₹${amount.toLocaleString()}</td>
-                    <td>${((amount / totalSpent) * 100).toFixed(1)}%</td>
+              </thead>
+              <tbody>
+                {payments.map((payment) => (
+                  <tr key={payment.id}>
+                    <td className="border border-gray-300 p-2">{payment.month}</td>
+                    <td className="border border-gray-300 p-2">
+                      <input
+                        type="date"
+                        value={payment.date}
+                        onChange={(e) => updatePayment(payment.id, 'date', e.target.value)}
+                        className="w-full p-1 border border-gray-200 rounded"
+                      />
+                    </td>
+                    <td className="border border-gray-300 p-2">
+                      <input
+                        type="number"
+                        value={payment.emi}
+                        onChange={(e) => updatePayment(payment.id, 'emi', e.target.value)}
+                        className="w-full p-1 border border-gray-200 rounded"
+                      />
+                    </td>
+                    <td className="border border-gray-300 p-2">
+                      <input
+                        type="number"
+                        value={payment.prepayment}
+                        onChange={(e) => updatePayment(payment.id, 'prepayment', e.target.value)}
+                        className="w-full p-1 border border-gray-200 rounded"
+                      />
+                    </td>
+                    <td className="border border-gray-300 p-2">
+                      <input
+                        type="number"
+                        value={payment.lumpsum}
+                        onChange={(e) => updatePayment(payment.id, 'lumpsum', e.target.value)}
+                        className="w-full p-1 border border-gray-200 rounded"
+                      />
+                    </td>
+                    <td className="border border-gray-300 p-2">
+                      <button
+                        onClick={() => deletePayment(payment.id)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Amortization Table */}
+      <div className="bg-white rounded-lg shadow-sm border p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Amortization Schedule</h3>
+        <div className="overflow-x-auto max-h-96">
+          <table className="w-full border-collapse border border-gray-300 text-sm">
+            <thead className="sticky top-0 bg-gray-50">
+              <tr>
+                <th className="border border-gray-300 p-2 text-left">Month</th>
+                <th className="border border-gray-300 p-2 text-right">EMI</th>
+                <th className="border border-gray-300 p-2 text-right">Interest</th>
+                <th className="border border-gray-300 p-2 text-right">Principal</th>
+                <th className="border border-gray-300 p-2 text-right">Prepayment</th>
+                <th className="border border-gray-300 p-2 text-right">Lumpsum</th>
+                <th className="border border-gray-300 p-2 text-right">Balance</th>
+                <th className="border border-gray-300 p-2 text-right">Total Paid</th>
+              </tr>
+            </thead>
+            <tbody>
+              {amortizationSchedule.map((row) => (
+                <tr key={row.month} className={row.month % 2 === 0 ? 'bg-gray-50' : ''}>
+                  <td className="border border-gray-300 p-2">{row.month}</td>
+                  <td className="border border-gray-300 p-2 text-right">{formatCurrency(row.emi)}</td>
+                  <td className="border border-gray-300 p-2 text-right text-red-600">{formatCurrency(row.interest)}</td>
+                  <td className="border border-gray-300 p-2 text-right text-green-600">{formatCurrency(row.principal)}</td>
+                  <td className="border border-gray-300 p-2 text-right text-blue-600">{formatCurrency(row.prepayment)}</td>
+                  <td className="border border-gray-300 p-2 text-right text-purple-600">{formatCurrency(row.lumpsum)}</td>
+                  <td className="border border-gray-300 p-2 text-right font-medium">{formatCurrency(row.balance)}</td>
+                  <td className="border border-gray-300 p-2 text-right font-medium">{formatCurrency(row.totalPaid)}</td>
                 </tr>
-            `).join('');
-        }
-        let weeklyChart;
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-function updateWeeklySummary() {
-    // Aggregate expenses per week (Sunday to Saturday)
-    const weeklyData = {};
-    expenses.forEach(expense => {
-        const expenseDate = new Date(expense.date);
-        const weekStart = new Date(expenseDate);
-        weekStart.setDate(expenseDate.getDate() - expenseDate.getDay());
-        weekStart.setHours(0, 0, 0, 0);
-        const weekKey = weekStart.toISOString().split('T')[0];
-        if (!weeklyData[weekKey]) weeklyData[weekKey] = 0;
-        weeklyData[weekKey] += expense.amount;
-    });
-
-    // Prepare labels and data (oldest week first)
-    const sortedWeeks = Object.entries(weeklyData).sort(([a], [b]) => new Date(a) - new Date(b));
-    const labels = sortedWeeks.map(([weekStart]) => {
-        const d = new Date(weekStart);
-        const dEnd = new Date(d);
-        dEnd.setDate(d.getDate() + 6);
-        return `${d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })} - ${dEnd.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}`;
-    });
-    const data = sortedWeeks.map(([, total]) => total);
-
-    // Draw chart
-    const ctx = document.getElementById('weeklySummaryChart').getContext('2d');
-    if (weeklyChart) weeklyChart.destroy();
-    weeklyChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Total Spent',
-                data: data,
-                borderRadius: 7,
-                backgroundColor: '#7c3aed',
-                maxBarThickness: 40,
-                barPercentage: 0.7
-            }]
-        },
-        options: {
-            responsive: true,
-            layout: {
-        padding: {
-            top: 80   // This adds space above the chart
-        }
-    },
-            plugins: {
-                legend: { display: false },
-                datalabels: {
-                    anchor: 'center',
-                    align: 'center',
-                    font: { weight: 'bold' },
-                    size: 14,
-                    formatter: value => '₹' + value.toLocaleString(),
-                    color: '#fff',
-                    clamp: true,
-                    clip: true
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: { callback: v => '₹' + v }
-                }
-            }
-        },
-        plugins: [ChartDataLabels]
-    });
-}
-
-        let monthlyChart;
-
-function updateMonthlySummary() {
-    // Aggregate expenses per month
-    const monthlyData = {};
-    expenses.forEach(expense => {
-        const expenseDate = new Date(expense.date);
-        const monthKey = `${expenseDate.getFullYear()}-${String(expenseDate.getMonth() + 1).padStart(2, '0')}`;
-        if (!monthlyData[monthKey]) monthlyData[monthKey] = 0;
-        monthlyData[monthKey] += expense.amount;
-    });
-
-    // Prepare labels and data (oldest month first)
-    const sortedMonths = Object.entries(monthlyData).sort(([a], [b]) => a.localeCompare(b));
-    const labels = sortedMonths.map(([month]) =>
-        new Date(month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'short' })
-    );
-    const data = sortedMonths.map(([, total]) => total);
-
-    // Draw chart
-    const ctx = document.getElementById('monthlySummaryChart').getContext('2d');
-    if (monthlyChart) monthlyChart.destroy();
-    monthlyChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Total Spent',
-                data: data,
-                borderRadius: 7,
-                backgroundColor: '#4f46e5',
-                maxBarThickness: 40,
-                barPercentage: 0.7
-            }]
-        },
-        options: {
-            responsive: true,
-            layout: {
-        padding: {
-            top: 80   // This adds space above the chart
-        }
-    },
-            plugins: {
-                legend: { display: false },
-                datalabels: {
-                    anchor: 'center',
-                    align: 'center',
-                    font: { weight: 'bold' },
-                    size: 14,
-                    formatter: value => '₹' + value.toLocaleString(),
-                    color: '#fff',
-                    clamp: true,
-                    clip: true
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: { callback: v => '₹' + v }
-                }
-            }
-        },
-        plugins: [ChartDataLabels]
-    });
-}
-
-let byPersonChart;
-
-function updateByPersonChart() {
-    // Calculate total spent by each person
-    const people = ['Akshay', 'Achal'];
-    const totals = [0, 0];
-    expenses.forEach(exp => {
-        if (exp.addedBy === 'Akshay') totals[0] += exp.amount;
-        else if (exp.addedBy === 'Achal') totals[1] += exp.amount;
-    });
-
-    const ctx = document.getElementById('byPersonChart').getContext('2d');
-    if (byPersonChart) byPersonChart.destroy();
-
-    byPersonChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: people,
-            datasets: [{
-                label: 'Total Spent',
-                data: totals,
-                backgroundColor: ['#4f46e5', '#10b981'], // Akshay: purple, Achal: green
-                borderRadius: 7,
-                maxBarThickness: 40,
-                barPercentage: 0.7
-            }]
-        },
-        options: {
-            responsive: true,
-            layout: {
-        padding: {
-            top: 80   // This adds space above the chart
-        }
-    },
-            plugins: {
-                legend: { display: false },
-                datalabels: {
-                    anchor: 'center',
-                    align: 'center',
-                    font: { weight: 'bold' },
-                    size: 14,
-                    formatter: value => '₹' + value.toLocaleString(),
-                    color: '#fff',
-                    clamp: true
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: { callback: v => '₹' + v }
-                }
-            }
-        },
-        plugins: [ChartDataLabels]
-    });
-}
-
-        function downloadCSV() {
-            if (expenses.length === 0) {
-                alert('No expenses to export');
-                return;
-            }
-            const csvContent = [
-                ['Date', 'Time', 'Category', 'Vendor', 'Amount', 'Note', 'Added By'],
-                ...expenses.map(expense => [
-                    expense.date,
-                    expense.time,
-                    expense.category,
-                    expense.vendor,
-                    expense.amount,
-                    expense.note || '',
-                    expense.addedBy || ''
-                ])
-            ].map(row => row.map(field => `"${field}"`).join(',')).join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `expenses_${new Date().toISOString().split('T')[0]}.csv`;
-            a.click();
-            window.URL.revokeObjectURL(url);
-        }
-        function downloadPDF() {
-    if (expenses.length === 0) {
-        alert('No expenses to export');
-        return;
-    }
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4"
-    });
-
-    // Title
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.setTextColor(76, 55, 190); // nice purple
-    doc.text("💰 Expense Report", 14, 18);
-
-    // Subheading with date
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
-    doc.setTextColor(80, 80, 80);
-    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 26);
-
-    // Budget summary
-    doc.setFontSize(12);
-    doc.setTextColor(20, 20, 20);
-    doc.text([
-      `Budget: ₹${budget.toLocaleString()}`,
-      `Total Spent: ₹${expenses.reduce((sum, expense) => sum + expense.amount, 0).toLocaleString()}`,
-      `Remaining: ₹${(budget - expenses.reduce((sum, expense) => sum + expense.amount, 0)).toLocaleString()}`
-    ].join("    "), 14, 34);
-
-    // Table columns
-    const tableColumn = ["Date", "Category", "Vendor", "Amount", "Note", "Added By"];
-    // Table rows
-    const tableRows = expenses.map(exp => [
-        exp.date,
-        exp.category,
-        exp.vendor,
-        `₹${exp.amount.toLocaleString()}`,
-        exp.note || "",
-        exp.addedBy || ""
-    ]);
-
-    // Add the table using autoTable
-    doc.autoTable({
-        head: [tableColumn],
-        body: tableRows,
-        startY: 40,
-        headStyles: { fillColor: [124, 58, 237], textColor: 255, fontSize: 11 },
-        styles: { font: "helvetica", fontSize: 10, cellPadding: 2 },
-        alternateRowStyles: { fillColor: [245, 245, 255] },
-        margin: { left: 10, right: 10 }
-    });
-
-    // Save PDF
-    doc.save(`expense_report_${new Date().toISOString().split('T')[0]}.pdf`);
-}
-
-
-    </script>
-</body>
-</html>
+export default LoanEMITracker;
