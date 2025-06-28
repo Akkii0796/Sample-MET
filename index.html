@@ -1,428 +1,677 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Calculator, Plus, Trash2, Calendar, DollarSign, TrendingUp, Clock } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Food Schedule</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+       import React, { useState, useEffect } from 'react';
+import { Plus, Search, Calendar, ShoppingCart, BarChart3, Download, Upload, Trash2, Edit2, Check, X } from 'lucide-react';
 
-const LoanEMITracker = () => {
-  const [loanDetails, setLoanDetails] = useState({
-    loanAmount: 11100000, // ₹1.11 crore
-    tenureMonths: 300,
-    roi: 7.9,
-    emi: ''
+const WeeklyFoodScheduler = () => {
+  // State management
+  const [recipes, setRecipes] = useState(() => {
+    const saved = localStorage.getItem('foodScheduler_recipes');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  const [weeklyPlan, setWeeklyPlan] = useState(() => {
+    const saved = localStorage.getItem('foodScheduler_weeklyPlan');
+    return saved ? JSON.parse(saved) : {};
+  });
+  
+  const [activeTab, setActiveTab] = useState('today');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [showAddRecipe, setShowAddRecipe] = useState(false);
+  const [editingRecipe, setEditingRecipe] = useState(null);
+  const [resetDay, setResetDay] = useState('sunday');
+  
+  // Form states
+  const [newRecipe, setNewRecipe] = useState({
+    name: '',
+    category: 'breakfast',
+    tags: '',
+    notes: '',
+    prepTime: '',
+    ingredients: ''
   });
 
-  const [payments, setPayments] = useState([]);
+  // Constants
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const mealTypes = ['breakfast', 'lunch', 'dinner'];
+  const categories = ['all', 'breakfast', 'lunch', 'dinner'];
 
-  // Calculate EMI if not provided
-  const calculateEMI = (principal, rate, tenure) => {
-    const monthlyRate = rate / (12 * 100);
-    const emi = (principal * monthlyRate * Math.pow(1 + monthlyRate, tenure)) / 
-                (Math.pow(1 + monthlyRate, tenure) - 1);
-    return Math.round(emi);
+  // Get current day
+  const getCurrentDay = () => {
+    return days[new Date().getDay()];
   };
 
-  const standardEMI = useMemo(() => {
-    return loanDetails.emi || calculateEMI(loanDetails.loanAmount, loanDetails.roi, loanDetails.tenureMonths);
-  }, [loanDetails]);
+  // Save to localStorage
+  useEffect(() => {
+    localStorage.setItem('foodScheduler_recipes', JSON.stringify(recipes));
+  }, [recipes]);
 
-  // Calculate total interest for standard loan
-  const totalInterestStandard = standardEMI * loanDetails.tenureMonths - loanDetails.loanAmount;
+  useEffect(() => {
+    localStorage.setItem('foodScheduler_weeklyPlan', JSON.stringify(weeklyPlan));
+  }, [weeklyPlan]);
 
-  // Generate amortization schedule with actual payments
-  const amortizationSchedule = useMemo(() => {
-    const schedule = [];
-    let balance = loanDetails.loanAmount;
-    const monthlyRate = loanDetails.roi / (12 * 100);
-    let totalInterestPaid = 0;
-    let totalPrincipalPaid = 0;
-    let totalPrepayment = 0;
-    let totalLumpsum = 0;
-
-    for (let month = 1; month <= loanDetails.tenureMonths && balance > 0; month++) {
-      const payment = payments.find(p => p.month === month) || {};
-      const emiPaid = payment.emi || standardEMI;
-      const prepayment = payment.prepayment || 0;
-      const lumpsum = payment.lumpsum || 0;
-
-      const interestPayment = balance * monthlyRate;
-      let principalPayment = Math.min(emiPaid - interestPayment, balance);
-      
-      // Ensure principal payment is not negative
-      principalPayment = Math.max(0, principalPayment);
-      
-      // Calculate new balance after EMI
-      let newBalance = balance - principalPayment;
-      
-      // Apply prepayment and lumpsum directly to remaining balance
-      const totalExtraPayment = prepayment + lumpsum;
-      newBalance = Math.max(0, newBalance - totalExtraPayment);
-      
-      // Track actual principal reduction
-      const actualPrincipalReduction = balance - newBalance;
-      
-      balance = newBalance;
-      totalInterestPaid += interestPayment;
-      totalPrincipalPaid += actualPrincipalReduction;
-      totalPrepayment += prepayment;
-      totalLumpsum += lumpsum;
-
-      schedule.push({
-        month,
-        date: payment.date || `Month ${month}`,
-        emi: emiPaid,
-        interest: interestPayment,
-        principal: principalPayment,
-        prepayment,
-        lumpsum,
-        balance: balance,
-        totalPaid: (schedule.length > 0 ? schedule[schedule.length - 1].totalPaid : 0) + emiPaid + prepayment + lumpsum,
-        cumulativeInterest: totalInterestPaid,
-        cumulativePrincipal: totalPrincipalPaid,
-        actualPrincipalReduction
-      });
-
-      if (balance <= 0) break;
-    }
-
-    return schedule;
-  }, [loanDetails, payments, standardEMI]);
-
-  // Calculate progress metrics
-  const progressMetrics = useMemo(() => {
-    if (amortizationSchedule.length === 0) {
-      return {
-        loanProgress: 0,
-        principalPaidPercent: 0,
-        interestPaidPercent: 0,
-        principalPaid: 0,
-        interestPaid: 0,
-        remainingBalance: loanDetails.loanAmount,
-        remainingTenure: loanDetails.tenureMonths,
-        interestSaved: 0,
-        monthsSaved: 0
-      };
-    }
-
-    const lastEntry = amortizationSchedule[amortizationSchedule.length - 1];
-    const remainingBalance = lastEntry.balance;
-    const principalPaid = loanDetails.loanAmount - remainingBalance;
-    const interestPaid = lastEntry.cumulativeInterest;
-    const remainingTenure = remainingBalance > 0 ? loanDetails.tenureMonths - amortizationSchedule.length : 0;
+  // Add recipe
+  const addRecipe = () => {
+    if (!newRecipe.name.trim()) return;
     
-    // Calculate what total interest would be if paying standard EMI for full tenure
-    const totalStandardInterest = (standardEMI * loanDetails.tenureMonths) - loanDetails.loanAmount;
-    
-    // Calculate projected remaining interest with current balance and standard EMI
-    let projectedRemainingInterest = 0;
-    if (remainingBalance > 0 && remainingTenure > 0) {
-      const monthlyRate = loanDetails.roi / (12 * 100);
-      let tempBalance = remainingBalance;
-      for (let i = 0; i < remainingTenure && tempBalance > 0; i++) {
-        const interest = tempBalance * monthlyRate;
-        const principal = Math.min(standardEMI - interest, tempBalance);
-        if (principal <= 0) break;
-        projectedRemainingInterest += interest;
-        tempBalance -= principal;
-      }
-    }
-    
-    const projectedTotalInterest = interestPaid + projectedRemainingInterest;
-    const interestSaved = Math.max(0, totalStandardInterest - projectedTotalInterest);
-    const monthsSaved = remainingBalance <= 0 ? loanDetails.tenureMonths - amortizationSchedule.length : 0;
-
-    return {
-      loanProgress: ((loanDetails.loanAmount - remainingBalance) / loanDetails.loanAmount) * 100,
-      principalPaidPercent: (principalPaid / loanDetails.loanAmount) * 100,
-      interestPaidPercent: totalStandardInterest > 0 ? (interestPaid / totalStandardInterest) * 100 : 0,
-      principalPaid,
-      interestPaid,
-      remainingBalance,
-      remainingTenure,
-      interestSaved,
-      monthsSaved
-    };
-  }, [amortizationSchedule, loanDetails, standardEMI]);
-
-  const addPayment = () => {
-    const newPayment = {
+    const recipe = {
       id: Date.now(),
-      month: payments.length + 1,
-      date: new Date().toISOString().split('T')[0],
-      emi: standardEMI,
-      prepayment: 0,
-      lumpsum: 0
+      ...newRecipe,
+      tags: newRecipe.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+      createdAt: new Date().toISOString(),
+      usageCount: 0
     };
-    setPayments([...payments, newPayment]);
+    
+    setRecipes([...recipes, recipe]);
+    setNewRecipe({ name: '', category: 'breakfast', tags: '', notes: '', prepTime: '', ingredients: '' });
+    setShowAddRecipe(false);
   };
 
-  const updatePayment = (id, field, value) => {
-    setPayments(payments.map(payment => 
-      payment.id === id ? { ...payment, [field]: parseFloat(value) || 0 } : payment
+  // Update recipe
+  const updateRecipe = () => {
+    setRecipes(recipes.map(recipe => 
+      recipe.id === editingRecipe.id ? editingRecipe : recipe
     ));
+    setEditingRecipe(null);
   };
 
-  const deletePayment = (id) => {
-    setPayments(payments.filter(payment => payment.id !== id));
+  // Delete recipe
+  const deleteRecipe = (id) => {
+    setRecipes(recipes.filter(recipe => recipe.id !== id));
+    // Remove from weekly plan
+    const updatedPlan = { ...weeklyPlan };
+    Object.keys(updatedPlan).forEach(day => {
+      Object.keys(updatedPlan[day]).forEach(meal => {
+        if (updatedPlan[day][meal]?.id === id) {
+          delete updatedPlan[day][meal];
+        }
+      });
+    });
+    setWeeklyPlan(updatedPlan);
   };
 
-  const formatCurrency = (amount) => {
-    return '₹' + new Intl.NumberFormat('en-IN', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
+  // Set meal in weekly plan
+  const setMeal = (day, mealType, recipe) => {
+    const updatedPlan = {
+      ...weeklyPlan,
+      [day]: {
+        ...weeklyPlan[day],
+        [mealType]: recipe
+      }
+    };
+    setWeeklyPlan(updatedPlan);
+    
+    // Update usage count
+    if (recipe) {
+      setRecipes(recipes.map(r => 
+        r.id === recipe.id ? { ...r, usageCount: (r.usageCount || 0) + 1 } : r
+      ));
+    }
   };
 
-  const ProgressBar = ({ label, percentage, amount, color = "bg-blue-500" }) => (
-    <div className="bg-white p-4 rounded-lg shadow-sm border">
-      <div className="flex justify-between items-center mb-2">
-        <span className="text-sm font-medium text-gray-700">{label}</span>
-        <span className="text-sm text-gray-500">{percentage.toFixed(1)}%</span>
+  // Clear weekly plan
+  const clearWeeklyPlan = () => {
+    setWeeklyPlan({});
+  };
+
+  // Filter recipes
+  const filteredRecipes = recipes.filter(recipe => {
+    const matchesSearch = recipe.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         recipe.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesCategory = selectedCategory === 'all' || recipe.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  // Generate shopping list
+  const generateShoppingList = () => {
+    const ingredients = [];
+    Object.values(weeklyPlan).forEach(dayPlan => {
+      Object.values(dayPlan).forEach(meal => {
+        if (meal && meal.ingredients) {
+          const mealIngredients = meal.ingredients.split(',').map(ing => ing.trim());
+          ingredients.push(...mealIngredients);
+        }
+      });
+    });
+    return [...new Set(ingredients)].filter(ing => ing);
+  };
+
+  // Export data
+  const exportData = () => {
+    const data = { recipes, weeklyPlan, resetDay };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'weekly-food-schedule.json';
+    a.click();
+  };
+
+  // Import data
+  const importData = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (data.recipes) setRecipes(data.recipes);
+          if (data.weeklyPlan) setWeeklyPlan(data.weeklyPlan);
+          if (data.resetDay) setResetDay(data.resetDay);
+        } catch (error) {
+          alert('Invalid file format');
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  // Today's View Component
+  const TodayView = () => {
+    const today = getCurrentDay();
+    const todaysPlan = weeklyPlan[today] || {};
+    
+    return (
+      <div className="space-y-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-800 capitalize">
+            {today}'s Meals
+          </h2>
+          <p className="text-gray-600">{new Date().toLocaleDateString()}</p>
+        </div>
+        
+        <div className="grid gap-4 md:grid-cols-3">
+          {mealTypes.map(mealType => (
+            <div key={mealType} className="bg-white rounded-lg border p-4">
+              <h3 className="font-semibold text-lg capitalize mb-3 text-gray-700">
+                {mealType}
+              </h3>
+              {todaysPlan[mealType] ? (
+                <div className="space-y-2">
+                  <p className="font-medium">{todaysPlan[mealType].name}</p>
+                  {todaysPlan[mealType].prepTime && (
+                    <p className="text-sm text-gray-600">⏱️ {todaysPlan[mealType].prepTime}</p>
+                  )}
+                  {todaysPlan[mealType].notes && (
+                    <p className="text-sm text-gray-600">{todaysPlan[mealType].notes}</p>
+                  )}
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => setMeal(today, mealType, null)}
+                      className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-gray-400 text-center py-8">
+                  <p>No meal planned</p>
+                  <select
+                    onChange={(e) => {
+                      const recipe = recipes.find(r => r.id === parseInt(e.target.value));
+                      if (recipe) setMeal(today, mealType, recipe);
+                    }}
+                    className="mt-2 text-sm border rounded px-2 py-1"
+                    value=""
+                  >
+                    <option value="">Select a meal</option>
+                    {recipes.filter(r => r.category === mealType).map(recipe => (
+                      <option key={recipe.id} value={recipe.id}>{recipe.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
-        <div 
-          className={`h-3 rounded-full ${color} transition-all duration-300`}
-          style={{ width: `${Math.min(percentage, 100)}%` }}
-        ></div>
+    );
+  };
+
+  // Weekly Planner Component
+  const WeeklyPlanner = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Weekly Planner</h2>
+        <button
+          onClick={clearWeeklyPlan}
+          className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 flex items-center gap-2"
+        >
+          <Trash2 className="w-4 h-4" />
+          Clear Week
+        </button>
       </div>
-      <div className="text-sm font-semibold text-gray-800">{formatCurrency(amount)}</div>
+      
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border border-gray-300">
+          <thead>
+            <tr>
+              <th className="border border-gray-300 p-2 bg-gray-50">Day</th>
+              {mealTypes.map(meal => (
+                <th key={meal} className="border border-gray-300 p-2 bg-gray-50 capitalize">
+                  {meal}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {days.map(day => (
+              <tr key={day} className={day === getCurrentDay() ? 'bg-blue-50' : ''}>
+                <td className="border border-gray-300 p-2 font-medium capitalize">
+                  {day}
+                  {day === getCurrentDay() && <span className="text-blue-600 ml-1">📅</span>}
+                </td>
+                {mealTypes.map(mealType => (
+                  <td key={mealType} className="border border-gray-300 p-2">
+                    <select
+                      value={weeklyPlan[day]?.[mealType]?.id || ''}
+                      onChange={(e) => {
+                        const recipe = recipes.find(r => r.id === parseInt(e.target.value));
+                        setMeal(day, mealType, recipe || null);
+                      }}
+                      className="w-full text-sm border rounded px-2 py-1"
+                    >
+                      <option value="">Select meal</option>
+                      {recipes.filter(r => r.category === mealType).map(recipe => (
+                        <option key={recipe.id} value={recipe.id}>{recipe.name}</option>
+                      ))}
+                    </select>
+                    {weeklyPlan[day]?.[mealType] && (
+                      <div className="mt-1 text-xs text-gray-600">
+                        {weeklyPlan[day][mealType].name}
+                      </div>
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 
-  return (
-    <div className="max-w-7xl mx-auto p-6 bg-gray-50 min-h-screen">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center gap-2">
-          <Calculator className="text-blue-600" />
-          Comprehensive Loan/EMI Tracker
-        </h1>
-        <p className="text-gray-600">Track your loan progress with detailed analytics and payment history</p>
+  // Recipe Manager Component
+  const RecipeManager = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Recipe Manager</h2>
+        <button
+          onClick={() => setShowAddRecipe(true)}
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Add Recipe
+        </button>
       </div>
 
-      {/* Loan Details Input */}
-      <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-          <DollarSign className="text-green-600" />
-          Loan Details
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Loan Amount (₹)</label>
-            <input
-              type="number"
-              value={loanDetails.loanAmount}
-              onChange={(e) => setLoanDetails({...loanDetails, loanAmount: parseFloat(e.target.value) || 0})}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tenure (Months)</label>
-            <input
-              type="number"
-              value={loanDetails.tenureMonths}
-              onChange={(e) => setLoanDetails({...loanDetails, tenureMonths: parseInt(e.target.value) || 0})}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Rate of Interest (%)</label>
-            <input
-              type="number"
-              step="0.1"
-              value={loanDetails.roi}
-              onChange={(e) => setLoanDetails({...loanDetails, roi: parseFloat(e.target.value) || 0})}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">EMI (Optional)</label>
-            <input
-              type="number"
-              placeholder={`Auto: ${formatCurrency(standardEMI)}`}
-              value={loanDetails.emi}
-              onChange={(e) => setLoanDetails({...loanDetails, emi: parseFloat(e.target.value) || ''})}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+      {/* Search and Filter */}
+      <div className="flex gap-4 mb-6">
+        <div className="flex-1 relative">
+          <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search recipes..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border rounded-lg"
+          />
         </div>
+        <select
+          value={selectedCategory}
+          onChange={(e) => setSelectedCategory(e.target.value)}
+          className="border rounded-lg px-4 py-2"
+        >
+          {categories.map(cat => (
+            <option key={cat} value={cat} className="capitalize">
+              {cat === 'all' ? 'All Categories' : cat}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {/* Chart */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <ProgressBar 
-          label="Loan Progress" 
-          percentage={progressMetrics.loanProgress} 
-          amount={loanDetails.loanAmount - progressMetrics.remainingBalance}
-          color="bg-blue-500"
-        />
-        <ProgressBar 
-          label="Principal Paid" 
-          percentage={progressMetrics.principalPaidPercent} 
-          amount={progressMetrics.principalPaid}
-          color="bg-green-500"
-        />
-        <ProgressBar 
-          label="Interest Paid" 
-          percentage={progressMetrics.interestPaidPercent} 
-          amount={progressMetrics.interestPaid}
-          color="bg-red-500"
-        />
-      </div>
-
-      {/* Key Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow-sm border text-center">
-          <Clock className="mx-auto text-orange-500 mb-2" size={24} />
-          <div className="text-sm text-gray-600">Remaining Tenure</div>
-          <div className="text-lg font-bold text-gray-800">{progressMetrics.remainingTenure} months</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border text-center">
-          <TrendingUp className="mx-auto text-green-500 mb-2" size={24} />
-          <div className="text-sm text-gray-600">Interest Saved</div>
-          <div className="text-lg font-bold text-green-600">{formatCurrency(progressMetrics.interestSaved)}</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border text-center">
-          <Calendar className="mx-auto text-blue-500 mb-2" size={24} />
-          <div className="text-sm text-gray-600">Months Saved</div>
-          <div className="text-lg font-bold text-blue-600">{progressMetrics.monthsSaved}</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border text-center">
-          <DollarSign className="mx-auto text-purple-500 mb-2" size={24} />
-          <div className="text-sm text-gray-600">Remaining Balance</div>
-          <div className="text-lg font-bold text-gray-800">{formatCurrency(progressMetrics.remainingBalance)}</div>
-        </div>
-      </div>
-
-      {/* Progress Bars */}
-      <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Interest vs Principal Breakup</h3>
-        <div style={{ width: '100%', height: '300px' }}>
-          <ResponsiveContainer>
-            <LineChart data={amortizationSchedule.slice(0, 60)}> {/* Show first 5 years */}
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis tickFormatter={(value) => `₹${(value/1000).toFixed(0)}k`} />
-              <Tooltip formatter={(value) => formatCurrency(value)} />
-              <Legend />
-              <Line type="monotone" dataKey="interest" stroke="#ef4444" name="Interest" strokeWidth={2} />
-              <Line type="monotone" dataKey="principal" stroke="#22c55e" name="Principal" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Payment Input Table */}
-      <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-gray-800">Monthly Payment Input</h3>
-          <button
-            onClick={addPayment}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2"
-          >
-            <Plus size={16} />
-            Add Payment
-          </button>
-        </div>
-        
-        {payments.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-gray-300">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="border border-gray-300 p-2 text-left">Month</th>
-                  <th className="border border-gray-300 p-2 text-left">Date</th>
-                  <th className="border border-gray-300 p-2 text-left">EMI Paid</th>
-                  <th className="border border-gray-300 p-2 text-left">Prepayment</th>
-                  <th className="border border-gray-300 p-2 text-left">Lumpsum</th>
-                  <th className="border border-gray-300 p-2 text-left">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map((payment) => (
-                  <tr key={payment.id}>
-                    <td className="border border-gray-300 p-2">{payment.month}</td>
-                    <td className="border border-gray-300 p-2">
-                      <input
-                        type="date"
-                        value={payment.date}
-                        onChange={(e) => updatePayment(payment.id, 'date', e.target.value)}
-                        className="w-full p-1 border border-gray-200 rounded"
-                      />
-                    </td>
-                    <td className="border border-gray-300 p-2">
-                      <input
-                        type="number"
-                        value={payment.emi}
-                        onChange={(e) => updatePayment(payment.id, 'emi', e.target.value)}
-                        className="w-full p-1 border border-gray-200 rounded"
-                      />
-                    </td>
-                    <td className="border border-gray-300 p-2">
-                      <input
-                        type="number"
-                        value={payment.prepayment}
-                        onChange={(e) => updatePayment(payment.id, 'prepayment', e.target.value)}
-                        className="w-full p-1 border border-gray-200 rounded"
-                      />
-                    </td>
-                    <td className="border border-gray-300 p-2">
-                      <input
-                        type="number"
-                        value={payment.lumpsum}
-                        onChange={(e) => updatePayment(payment.id, 'lumpsum', e.target.value)}
-                        className="w-full p-1 border border-gray-200 rounded"
-                      />
-                    </td>
-                    <td className="border border-gray-300 p-2">
-                      <button
-                        onClick={() => deletePayment(payment.id)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
-                  </tr>
+      {/* Recipe List */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {filteredRecipes.map(recipe => (
+          <div key={recipe.id} className="bg-white border rounded-lg p-4">
+            <div className="flex justify-between items-start mb-2">
+              <h3 className="font-semibold">{recipe.name}</h3>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setEditingRecipe(recipe)}
+                  className="text-blue-600 hover:text-blue-800"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => deleteRecipe(recipe.id)}
+                  className="text-red-600 hover:text-red-800"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 capitalize mb-2">{recipe.category}</p>
+            {recipe.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-2">
+                {recipe.tags.map(tag => (
+                  <span key={tag} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                    {tag}
+                  </span>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            )}
+            {recipe.prepTime && (
+              <p className="text-sm text-gray-600">⏱️ {recipe.prepTime}</p>
+            )}
+            {recipe.usageCount > 0 && (
+              <p className="text-xs text-gray-500 mt-2">Used {recipe.usageCount} times</p>
+            )}
           </div>
-        )}
+        ))}
       </div>
 
-      {/* Amortization Table */}
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Amortization Schedule</h3>
-        <div className="overflow-x-auto max-h-96">
-          <table className="w-full border-collapse border border-gray-300 text-sm">
-            <thead className="sticky top-0 bg-gray-50">
-              <tr>
-                <th className="border border-gray-300 p-2 text-left">Month</th>
-                <th className="border border-gray-300 p-2 text-right">EMI</th>
-                <th className="border border-gray-300 p-2 text-right">Interest</th>
-                <th className="border border-gray-300 p-2 text-right">Principal</th>
-                <th className="border border-gray-300 p-2 text-right">Prepayment</th>
-                <th className="border border-gray-300 p-2 text-right">Lumpsum</th>
-                <th className="border border-gray-300 p-2 text-right">Balance</th>
-                <th className="border border-gray-300 p-2 text-right">Total Paid</th>
-              </tr>
-            </thead>
-            <tbody>
-              {amortizationSchedule.map((row) => (
-                <tr key={row.month} className={row.month % 2 === 0 ? 'bg-gray-50' : ''}>
-                  <td className="border border-gray-300 p-2">{row.month}</td>
-                  <td className="border border-gray-300 p-2 text-right">{formatCurrency(row.emi)}</td>
-                  <td className="border border-gray-300 p-2 text-right text-red-600">{formatCurrency(row.interest)}</td>
-                  <td className="border border-gray-300 p-2 text-right text-green-600">{formatCurrency(row.principal)}</td>
-                  <td className="border border-gray-300 p-2 text-right text-blue-600">{formatCurrency(row.prepayment)}</td>
-                  <td className="border border-gray-300 p-2 text-right text-purple-600">{formatCurrency(row.lumpsum)}</td>
-                  <td className="border border-gray-300 p-2 text-right font-medium">{formatCurrency(row.balance)}</td>
-                  <td className="border border-gray-300 p-2 text-right font-medium">{formatCurrency(row.totalPaid)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Add Recipe Modal */}
+      {showAddRecipe && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Add New Recipe</h3>
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Recipe name"
+                value={newRecipe.name}
+                onChange={(e) => setNewRecipe({...newRecipe, name: e.target.value})}
+                className="w-full border rounded px-3 py-2"
+              />
+              <select
+                value={newRecipe.category}
+                onChange={(e) => setNewRecipe({...newRecipe, category: e.target.value})}
+                className="w-full border rounded px-3 py-2"
+              >
+                {mealTypes.map(type => (
+                  <option key={type} value={type} className="capitalize">{type}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                placeholder="Tags (comma-separated)"
+                value={newRecipe.tags}
+                onChange={(e) => setNewRecipe({...newRecipe, tags: e.target.value})}
+                className="w-full border rounded px-3 py-2"
+              />
+              <input
+                type="text"
+                placeholder="Prep time"
+                value={newRecipe.prepTime}
+                onChange={(e) => setNewRecipe({...newRecipe, prepTime: e.target.value})}
+                className="w-full border rounded px-3 py-2"
+              />
+              <textarea
+                placeholder="Ingredients (comma-separated)"
+                value={newRecipe.ingredients}
+                onChange={(e) => setNewRecipe({...newRecipe, ingredients: e.target.value})}
+                className="w-full border rounded px-3 py-2 h-20"
+              />
+              <textarea
+                placeholder="Notes"
+                value={newRecipe.notes}
+                onChange={(e) => setNewRecipe({...newRecipe, notes: e.target.value})}
+                className="w-full border rounded px-3 py-2 h-20"
+              />
+            </div>
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={addRecipe}
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                Add
+              </button>
+              <button
+                onClick={() => setShowAddRecipe(false)}
+                className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 flex items-center gap-2"
+              >
+                <X className="w-4 h-4" />
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Recipe Modal */}
+      {editingRecipe && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Edit Recipe</h3>
+            <div className="space-y-4">
+              <input
+                type="text"
+                value={editingRecipe.name}
+                onChange={(e) => setEditingRecipe({...editingRecipe, name: e.target.value})}
+                className="w-full border rounded px-3 py-2"
+              />
+              <select
+                value={editingRecipe.category}
+                onChange={(e) => setEditingRecipe({...editingRecipe, category: e.target.value})}
+                className="w-full border rounded px-3 py-2"
+              >
+                {mealTypes.map(type => (
+                  <option key={type} value={type} className="capitalize">{type}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={editingRecipe.tags.join(', ')}
+                onChange={(e) => setEditingRecipe({
+                  ...editingRecipe, 
+                  tags: e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag)
+                })}
+                className="w-full border rounded px-3 py-2"
+              />
+              <input
+                type="text"
+                value={editingRecipe.prepTime || ''}
+                onChange={(e) => setEditingRecipe({...editingRecipe, prepTime: e.target.value})}
+                className="w-full border rounded px-3 py-2"
+                placeholder="Prep time"
+              />
+              <textarea
+                value={editingRecipe.ingredients || ''}
+                onChange={(e) => setEditingRecipe({...editingRecipe, ingredients: e.target.value})}
+                className="w-full border rounded px-3 py-2 h-20"
+                placeholder="Ingredients (comma-separated)"
+              />
+              <textarea
+                value={editingRecipe.notes || ''}
+                onChange={(e) => setEditingRecipe({...editingRecipe, notes: e.target.value})}
+                className="w-full border rounded px-3 py-2 h-20"
+                placeholder="Notes"
+              />
+            </div>
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={updateRecipe}
+                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 flex items-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                Update
+              </button>
+              <button
+                onClick={() => setEditingRecipe(null)}
+                className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 flex items-center gap-2"
+              >
+                <X className="w-4 h-4" />
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // Shopping List Component
+  const ShoppingList = () => {
+    const shoppingList = generateShoppingList();
+    
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold text-gray-800">Shopping List</h2>
+        <div className="bg-white rounded-lg border p-6">
+          {shoppingList.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-gray-600 mb-4">Based on your weekly meal plan:</p>
+              <ul className="space-y-2">
+                {shoppingList.map((ingredient, index) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <input type="checkbox" className="rounded" />
+                    <span>{ingredient}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-8">
+              No ingredients found. Add meals to your weekly plan to generate a shopping list.
+            </p>
+          )}
         </div>
       </div>
+    );
+  };
+
+  // Analytics Component
+  const Analytics = () => {
+    const recipeUsage = recipes
+      .filter(r => r.usageCount > 0)
+      .sort((a, b) => b.usageCount - a.usageCount)
+      .slice(0, 10);
+
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold text-gray-800">Analytics</h2>
+        
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="bg-white rounded-lg border p-6">
+            <h3 className="text-lg font-semibold mb-4">Recipe Statistics</h3>
+            <div className="space-y-2">
+              <p>Total Recipes: <span className="font-semibold">{recipes.length}</span></p>
+              <p>Breakfast: <span className="font-semibold">{recipes.filter(r => r.category === 'breakfast').length}</span></p>
+              <p>Lunch: <span className="font-semibold">{recipes.filter(r => r.category === 'lunch').length}</span></p>
+              <p>Dinner: <span className="font-semibold">{recipes.filter(r => r.category === 'dinner').length}</span></p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg border p-6">
+            <h3 className="text-lg font-semibold mb-4">Most Used Recipes</h3>
+            {recipeUsage.length > 0 ? (
+              <div className="space-y-2">
+                {recipeUsage.map(recipe => (
+                  <div key={recipe.id} className="flex justify-between">
+                    <span className="truncate">{recipe.name}</span>
+                    <span className="font-semibold">{recipe.usageCount}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500">No usage data yet</p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <h1 className="text-2xl font-bold text-gray-900">Weekly Food Schedule</h1>
+            <div className="flex gap-2">
+              <button
+                onClick={exportData}
+                className="text-sm bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600 flex items-center gap-1"
+              >
+                <Download className="w-4 h-4" />
+                Export
+              </button>
+              <label className="text-sm bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600 flex items-center gap-1 cursor-pointer">
+                <Upload className="w-4 h-4" />
+                Import
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={importData}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Navigation */}
+      <nav className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex space-x-8">
+            {[
+              { id: 'today', label: 'Today', icon: Calendar },
+              { id: 'weekly', label: 'Weekly Planner', icon: Calendar },
+              { id: 'recipes', label: 'Recipes', icon: Plus },
+              { id: 'shopping', label: 'Shopping List', icon: ShoppingCart },
+              { id: 'analytics', label: 'Analytics', icon: BarChart3 }
+            ].map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {activeTab === 'today' && <TodayView />}
+        {activeTab === 'weekly' && <WeeklyPlanner />}
+        {activeTab === 'recipes' && <RecipeManager />}
+        {activeTab === 'shopping' && <ShoppingList />}
+        {activeTab === 'analytics' && <Analytics />}
+      </main>
     </div>
   );
 };
 
-export default LoanEMITracker;
+export default WeeklyFoodScheduler;
+        ReactDOM.render(<WeeklyFoodScheduler />, document.getElementById('root'));
+    </script>
+</body>
+</html>
