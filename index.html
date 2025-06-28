@@ -1,644 +1,203 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Weekly Food Schedule</title>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-        }
+      body {
+        font-family: sans-serif;
+        margin: 0;
+        padding: 1rem;
+        background: #fdfdfd;
+      }
+      h1, h2 {
+        color: #333;
+      }
+      .section {
+        margin-bottom: 2rem;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 1rem;
+      }
+      .recipe-form input,
+      .recipe-form textarea,
+      .planner select {
+        margin: 0.3rem;
+        padding: 0.5rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th, td {
+        padding: 0.5rem;
+        border: 1px solid #ccc;
+        text-align: center;
+      }
+      .today {
+        background: #ffe;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+      }
+      .tag {
+        font-size: 0.85rem;
+        background: #eef;
+        margin: 2px;
+        padding: 2px 5px;
+        border-radius: 4px;
+      }
     </style>
-</head>
-<body>
-    <div id="root"></div>
-    
-    <script type="text/babel">
-        // Lucide React icons as components
-        const Plus = () => React.createElement('svg', {
-            width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none',
-            stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round'
-        }, React.createElement('path', { d: 'm12 5 0 14' }), React.createElement('path', { d: 'm5 12 14 0' }));
+  </head>
+  <body>
+    <h1>🍴 Weekly Food Schedule</h1>
 
-        const Search = () => React.createElement('svg', {
-            width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none',
-            stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round'
-        }, React.createElement('circle', { cx: 11, cy: 11, r: 8 }), React.createElement('path', { d: 'm21 21-4.35-4.35' }));
+    <div class="section today" id="todayView"></div>
 
-        const Calendar = () => React.createElement('svg', {
-            width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none',
-            stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round'
-        }, React.createElement('path', { d: 'M8 2v4' }), React.createElement('path', { d: 'M16 2v4' }), React.createElement('rect', { width: 18, height: 18, x: 3, y: 4, rx: 2 }), React.createElement('path', { d: 'M3 10h18' }));
+    <div class="section" id="weeklyPlanner"></div>
 
-        const ShoppingCart = () => React.createElement('svg', {
-            width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none',
-            stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round'
-        }, React.createElement('circle', { cx: 8, cy: 21, r: 1 }), React.createElement('circle', { cx: 19, cy: 21, r: 1 }), React.createElement('path', { d: 'M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57L23 6H6' }));
+    <div class="section" id="masterList"></div>
 
-        const BarChart3 = () => React.createElement('svg', {
-            width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none',
-            stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round'
-        }, React.createElement('path', { d: 'M3 3v18h18' }), React.createElement('path', { d: 'M18 17V9' }), React.createElement('path', { d: 'M13 17V5' }), React.createElement('path', { d: 'M8 17v-3' }));
+    <div class="section" id="shoppingList"></div>
 
-        const Download = () => React.createElement('svg', {
-            width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none',
-            stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round'
-        }, React.createElement('path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }), React.createElement('polyline', { points: '7,10 12,15 17,10' }), React.createElement('line', { x1: 12, x2: 12, y1: 15, y2: 3 }));
+    <script>
+      const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const MEALS = ["Breakfast", "Lunch", "Dinner"];
 
-        const Upload = () => React.createElement('svg', {
-            width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none',
-            stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round'
-        }, React.createElement('path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }), React.createElement('polyline', { points: '17,8 12,3 7,8' }), React.createElement('line', { x1: 12, x2: 12, y1: 3, y2: 15 }));
+      const defaultRecipes = [
+        { id: 1, name: "Poha", category: "Breakfast", tags: ["quick", "veg"], notes: "Flattened rice, onion, lemon" },
+        { id: 2, name: "Paneer Curry", category: "Lunch", tags: ["protein", "veg"], notes: "Paneer, tomato, spices" },
+        { id: 3, name: "Dal Rice", category: "Dinner", tags: ["veg"], notes: "Toor dal, rice, ghee" },
+      ];
 
-        const Trash2 = () => React.createElement('svg', {
-            width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none',
-            stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round'
-        }, React.createElement('path', { d: 'M3 6h18' }), React.createElement('path', { d: 'M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6' }), React.createElement('path', { d: 'M8 6V4c0-1 1-2 2-2h4c0-1 1-2 2-2v2' }), React.createElement('line', { x1: 10, x2: 10, y1: 11, y2: 17 }), React.createElement('line', { x1: 14, x2: 14, y1: 11, y2: 17 }));
+      function loadRecipes() {
+        return JSON.parse(localStorage.getItem("recipes")) || defaultRecipes;
+      }
 
-        const Edit2 = () => React.createElement('svg', {
-            width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none',
-            stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round'
-        }, React.createElement('path', { d: 'M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z' }), React.createElement('path', { d: 'm15 5 4 4' }));
+      function saveRecipes(data) {
+        localStorage.setItem("recipes", JSON.stringify(data));
+      }
 
-        const Check = () => React.createElement('svg', {
-            width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none',
-            stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round'
-        }, React.createElement('path', { d: 'm9 12 2 2 4-4' }));
+      function loadPlan() {
+        return JSON.parse(localStorage.getItem("mealPlan")) || {};
+      }
 
-        const X = () => React.createElement('svg', {
-            width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none',
-            stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round'
-        }, React.createElement('path', { d: 'm18 6-12 12' }), React.createElement('path', { d: 'm6 6 12 12' }));
+      function savePlan(plan) {
+        localStorage.setItem("mealPlan", JSON.stringify(plan));
+      }
 
-        const WeeklyFoodScheduler = () => {
-            // State management
-            const [recipes, setRecipes] = React.useState(() => {
-                try {
-                    const saved = localStorage.getItem('foodScheduler_recipes');
-                    return saved ? JSON.parse(saved) : [];
-                } catch (e) {
-                    return [];
-                }
+      function renderToday() {
+        const today = new Date().getDay();
+        const plan = loadPlan();
+        const recipes = loadRecipes();
+        const todayMeals = plan[DAYS[today]] || {};
+
+        const view = document.getElementById("todayView");
+        view.innerHTML = `<h2>Today's Meals - ${DAYS[today]}</h2>` +
+          MEALS.map(meal => {
+            const recipe = recipes.find(r => r.id == todayMeals[meal]);
+            return `<p><strong>${meal}:</strong> ${recipe ? recipe.name : "-"}</p>`;
+          }).join("");
+      }
+
+      function renderPlanner() {
+        const plan = loadPlan();
+        const recipes = loadRecipes();
+
+        const container = document.getElementById("weeklyPlanner");
+        let html = `<h2>📅 Weekly Planner</h2><table><thead><tr><th>Day</th>`;
+        MEALS.forEach(meal => html += `<th>${meal}</th>`);
+        html += `</tr></thead><tbody>`;
+
+        DAYS.forEach(day => {
+          html += `<tr><td>${day}</td>`;
+          MEALS.forEach(meal => {
+            html += `<td><select data-day="${day}" data-meal="${meal}">`;
+            html += `<option value="">--Select--</option>`;
+            recipes.filter(r => r.category === meal).forEach(r => {
+              const selected = plan[day]?.[meal] == r.id ? "selected" : "";
+              html += `<option value="${r.id}" ${selected}>${r.name}</option>`;
             });
-            
-            const [weeklyPlan, setWeeklyPlan] = React.useState(() => {
-                try {
-                    const saved = localStorage.getItem('foodScheduler_weeklyPlan');
-                    return saved ? JSON.parse(saved) : {};
-                } catch (e) {
-                    return {};
-                }
-            });
-            
-            const [activeTab, setActiveTab] = React.useState('today');
-            const [searchTerm, setSearchTerm] = React.useState('');
-            const [selectedCategory, setSelectedCategory] = React.useState('all');
-            const [showAddRecipe, setShowAddRecipe] = React.useState(false);
-            const [editingRecipe, setEditingRecipe] = React.useState(null);
-            
-            // Form states
-            const [newRecipe, setNewRecipe] = React.useState({
-                name: '',
-                category: 'breakfast',
-                tags: '',
-                notes: '',
-                prepTime: '',
-                ingredients: ''
-            });
+            html += `</select></td>`;
+          });
+          html += `</tr>`;
+        });
+        html += `</tbody></table>`;
+        container.innerHTML = html;
 
-            // Constants
-            const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-            const mealTypes = ['breakfast', 'lunch', 'dinner'];
-            const categories = ['all', 'breakfast', 'lunch', 'dinner'];
+        container.querySelectorAll("select").forEach(select => {
+          select.onchange = e => {
+            const day = e.target.dataset.day;
+            const meal = e.target.dataset.meal;
+            const val = parseInt(e.target.value);
+            if (!plan[day]) plan[day] = {};
+            plan[day][meal] = val;
+            savePlan(plan);
+            renderToday();
+            renderShopping();
+          };
+        });
+      }
 
-            // Get current day
-            const getCurrentDay = () => {
-                return days[new Date().getDay()];
-            };
+      function renderMaster() {
+        const recipes = loadRecipes();
+        const container = document.getElementById("masterList");
 
-            // Save to localStorage
-            React.useEffect(() => {
-                try {
-                    localStorage.setItem('foodScheduler_recipes', JSON.stringify(recipes));
-                } catch (e) {
-                    console.error('Failed to save recipes:', e);
-                }
-            }, [recipes]);
+        let html = `<h2>📖 Master Recipes</h2>`;
+        html += `<form class="recipe-form" onsubmit="return false;">
+          <input type="text" id="name" placeholder="Name" required>
+          <select id="category">${MEALS.map(m => `<option>${m}</option>`)}</select>
+          <input type="text" id="tags" placeholder="Tags (comma separated)">
+          <textarea id="notes" placeholder="Notes"></textarea>
+          <button type="submit">Add</button>
+        </form>`;
 
-            React.useEffect(() => {
-                try {
-                    localStorage.setItem('foodScheduler_weeklyPlan', JSON.stringify(weeklyPlan));
-                } catch (e) {
-                    console.error('Failed to save weekly plan:', e);
-                }
-            }, [weeklyPlan]);
+        html += `<ul>` + recipes.map(r =>
+          `<li><strong>${r.name}</strong> (${r.category}) - ${r.notes}<br>
+            ${r.tags.map(tag => `<span class='tag'>${tag}</span>`).join(" ")}</li>`
+        ).join("") + `</ul>`;
 
-            // Add recipe
-            const addRecipe = () => {
-                if (!newRecipe.name.trim()) return;
-                
-                const recipe = {
-                    id: Date.now(),
-                    ...newRecipe,
-                    tags: newRecipe.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
-                    createdAt: new Date().toISOString(),
-                    usageCount: 0
-                };
-                
-                setRecipes([...recipes, recipe]);
-                setNewRecipe({ name: '', category: 'breakfast', tags: '', notes: '', prepTime: '', ingredients: '' });
-                setShowAddRecipe(false);
-            };
+        container.innerHTML = html;
 
-            // Update recipe
-            const updateRecipe = () => {
-                setRecipes(recipes.map(recipe => 
-                    recipe.id === editingRecipe.id ? editingRecipe : recipe
-                ));
-                setEditingRecipe(null);
-            };
-
-            // Delete recipe
-            const deleteRecipe = (id) => {
-                setRecipes(recipes.filter(recipe => recipe.id !== id));
-                const updatedPlan = { ...weeklyPlan };
-                Object.keys(updatedPlan).forEach(day => {
-                    Object.keys(updatedPlan[day]).forEach(meal => {
-                        if (updatedPlan[day][meal]?.id === id) {
-                            delete updatedPlan[day][meal];
-                        }
-                    });
-                });
-                setWeeklyPlan(updatedPlan);
-            };
-
-            // Set meal in weekly plan
-            const setMeal = (day, mealType, recipe) => {
-                const updatedPlan = {
-                    ...weeklyPlan,
-                    [day]: {
-                        ...weeklyPlan[day],
-                        [mealType]: recipe
-                    }
-                };
-                setWeeklyPlan(updatedPlan);
-                
-                if (recipe) {
-                    setRecipes(recipes.map(r => 
-                        r.id === recipe.id ? { ...r, usageCount: (r.usageCount || 0) + 1 } : r
-                    ));
-                }
-            };
-
-            // Clear weekly plan
-            const clearWeeklyPlan = () => {
-                setWeeklyPlan({});
-            };
-
-            // Filter recipes
-            const filteredRecipes = recipes.filter(recipe => {
-                const matchesSearch = recipe.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                     recipe.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
-                const matchesCategory = selectedCategory === 'all' || recipe.category === selectedCategory;
-                return matchesSearch && matchesCategory;
-            });
-
-            // Generate shopping list
-            const generateShoppingList = () => {
-                const ingredients = [];
-                Object.values(weeklyPlan).forEach(dayPlan => {
-                    Object.values(dayPlan).forEach(meal => {
-                        if (meal && meal.ingredients) {
-                            const mealIngredients = meal.ingredients.split(',').map(ing => ing.trim());
-                            ingredients.push(...mealIngredients);
-                        }
-                    });
-                });
-                return [...new Set(ingredients)].filter(ing => ing);
-            };
-
-            // Export data
-            const exportData = () => {
-                const data = { recipes, weeklyPlan };
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'weekly-food-schedule.json';
-                a.click();
-            };
-
-            // Import data
-            const importData = (event) => {
-                const file = event.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        try {
-                            const data = JSON.parse(e.target.result);
-                            if (data.recipes) setRecipes(data.recipes);
-                            if (data.weeklyPlan) setWeeklyPlan(data.weeklyPlan);
-                        } catch (error) {
-                            alert('Invalid file format');
-                        }
-                    };
-                    reader.readAsText(file);
-                }
-            };
-
-            // Today's View Component
-            const TodayView = () => {
-                const today = getCurrentDay();
-                const todaysPlan = weeklyPlan[today] || {};
-                
-                return React.createElement('div', { className: 'space-y-6' },
-                    React.createElement('div', { className: 'text-center' },
-                        React.createElement('h2', { className: 'text-2xl font-bold text-gray-800 capitalize' },
-                            today + "'s Meals"
-                        ),
-                        React.createElement('p', { className: 'text-gray-600' }, new Date().toLocaleDateString())
-                    ),
-                    React.createElement('div', { className: 'grid gap-4 md:grid-cols-3' },
-                        mealTypes.map(mealType => 
-                            React.createElement('div', { 
-                                key: mealType, 
-                                className: 'bg-white rounded-lg border p-4' 
-                            },
-                                React.createElement('h3', { 
-                                    className: 'font-semibold text-lg capitalize mb-3 text-gray-700' 
-                                }, mealType),
-                                todaysPlan[mealType] ? 
-                                    React.createElement('div', { className: 'space-y-2' },
-                                        React.createElement('p', { className: 'font-medium' }, todaysPlan[mealType].name),
-                                        todaysPlan[mealType].prepTime && 
-                                            React.createElement('p', { className: 'text-sm text-gray-600' }, '⏱️ ' + todaysPlan[mealType].prepTime),
-                                        todaysPlan[mealType].notes && 
-                                            React.createElement('p', { className: 'text-sm text-gray-600' }, todaysPlan[mealType].notes),
-                                        React.createElement('div', { className: 'flex gap-2 mt-3' },
-                                            React.createElement('button', {
-                                                onClick: () => setMeal(today, mealType, null),
-                                                className: 'text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200'
-                                            }, 'Remove')
-                                        )
-                                    ) :
-                                    React.createElement('div', { className: 'text-gray-400 text-center py-8' },
-                                        React.createElement('p', null, 'No meal planned'),
-                                        React.createElement('select', {
-                                            onChange: (e) => {
-                                                const recipe = recipes.find(r => r.id === parseInt(e.target.value));
-                                                if (recipe) setMeal(today, mealType, recipe);
-                                            },
-                                            className: 'mt-2 text-sm border rounded px-2 py-1',
-                                            value: ''
-                                        },
-                                            React.createElement('option', { value: '' }, 'Select a meal'),
-                                            recipes.filter(r => r.category === mealType).map(recipe =>
-                                                React.createElement('option', { key: recipe.id, value: recipe.id }, recipe.name)
-                                            )
-                                        )
-                                    )
-                            )
-                        )
-                    )
-                );
-            };
-
-            // Weekly Planner Component
-            const WeeklyPlanner = () => React.createElement('div', { className: 'space-y-6' },
-                React.createElement('div', { className: 'flex justify-between items-center' },
-                    React.createElement('h2', { className: 'text-2xl font-bold text-gray-800' }, 'Weekly Planner'),
-                    React.createElement('button', {
-                        onClick: clearWeeklyPlan,
-                        className: 'bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 flex items-center gap-2'
-                    },
-                        React.createElement(Trash2, { className: 'w-4 h-4' }),
-                        'Clear Week'
-                    )
-                ),
-                React.createElement('div', { className: 'overflow-x-auto' },
-                    React.createElement('table', { className: 'w-full border-collapse border border-gray-300' },
-                        React.createElement('thead', null,
-                            React.createElement('tr', null,
-                                React.createElement('th', { className: 'border border-gray-300 p-2 bg-gray-50' }, 'Day'),
-                                mealTypes.map(meal =>
-                                    React.createElement('th', { 
-                                        key: meal, 
-                                        className: 'border border-gray-300 p-2 bg-gray-50 capitalize' 
-                                    }, meal)
-                                )
-                            )
-                        ),
-                        React.createElement('tbody', null,
-                            days.map(day =>
-                                React.createElement('tr', { 
-                                    key: day, 
-                                    className: day === getCurrentDay() ? 'bg-blue-50' : '' 
-                                },
-                                    React.createElement('td', { className: 'border border-gray-300 p-2 font-medium capitalize' },
-                                        day,
-                                        day === getCurrentDay() && React.createElement('span', { className: 'text-blue-600 ml-1' }, '📅')
-                                    ),
-                                    mealTypes.map(mealType =>
-                                        React.createElement('td', { 
-                                            key: mealType, 
-                                            className: 'border border-gray-300 p-2' 
-                                        },
-                                            React.createElement('select', {
-                                                value: weeklyPlan[day]?.[mealType]?.id || '',
-                                                onChange: (e) => {
-                                                    const recipe = recipes.find(r => r.id === parseInt(e.target.value));
-                                                    setMeal(day, mealType, recipe || null);
-                                                },
-                                                className: 'w-full text-sm border rounded px-2 py-1'
-                                            },
-                                                React.createElement('option', { value: '' }, 'Select meal'),
-                                                recipes.filter(r => r.category === mealType).map(recipe =>
-                                                    React.createElement('option', { key: recipe.id, value: recipe.id }, recipe.name)
-                                                )
-                                            ),
-                                            weeklyPlan[day]?.[mealType] &&
-                                                React.createElement('div', { className: 'mt-1 text-xs text-gray-600' },
-                                                    weeklyPlan[day][mealType].name
-                                                )
-                                        )
-                                    )
-                                )
-                            )
-                        )
-                    )
-                )
-            );
-
-            // Recipe Manager Component with modals
-            const RecipeManager = () => React.createElement('div', { className: 'space-y-6' },
-                React.createElement('div', { className: 'flex justify-between items-center' },
-                    React.createElement('h2', { className: 'text-2xl font-bold text-gray-800' }, 'Recipe Manager'),
-                    React.createElement('button', {
-                        onClick: () => setShowAddRecipe(true),
-                        className: 'bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center gap-2'
-                    },
-                        React.createElement(Plus, { className: 'w-4 h-4' }),
-                        'Add Recipe'
-                    )
-                ),
-                React.createElement('div', { className: 'flex gap-4 mb-6' },
-                    React.createElement('div', { className: 'flex-1 relative' },
-                        React.createElement(Search, { className: 'w-4 h-4 absolute left-3 top-3 text-gray-400' }),
-                        React.createElement('input', {
-                            type: 'text',
-                            placeholder: 'Search recipes...',
-                            value: searchTerm,
-                            onChange: (e) => setSearchTerm(e.target.value),
-                            className: 'w-full pl-10 pr-4 py-2 border rounded-lg'
-                        })
-                    ),
-                    React.createElement('select', {
-                        value: selectedCategory,
-                        onChange: (e) => setSelectedCategory(e.target.value),
-                        className: 'border rounded-lg px-4 py-2'
-                    },
-                        categories.map(cat =>
-                            React.createElement('option', { key: cat, value: cat, className: 'capitalize' },
-                                cat === 'all' ? 'All Categories' : cat
-                            )
-                        )
-                    )
-                ),
-                React.createElement('div', { className: 'grid gap-4 md:grid-cols-2 lg:grid-cols-3' },
-                    filteredRecipes.map(recipe =>
-                        React.createElement('div', { key: recipe.id, className: 'bg-white border rounded-lg p-4' },
-                            React.createElement('div', { className: 'flex justify-between items-start mb-2' },
-                                React.createElement('h3', { className: 'font-semibold' }, recipe.name),
-                                React.createElement('div', { className: 'flex gap-1' },
-                                    React.createElement('button', {
-                                        onClick: () => setEditingRecipe(recipe),
-                                        className: 'text-blue-600 hover:text-blue-800'
-                                    }, React.createElement(Edit2, { className: 'w-4 h-4' })),
-                                    React.createElement('button', {
-                                        onClick: () => deleteRecipe(recipe.id),
-                                        className: 'text-red-600 hover:text-red-800'
-                                    }, React.createElement(Trash2, { className: 'w-4 h-4' }))
-                                )
-                            ),
-                            React.createElement('p', { className: 'text-sm text-gray-600 capitalize mb-2' }, recipe.category),
-                            recipe.tags.length > 0 &&
-                                React.createElement('div', { className: 'flex flex-wrap gap-1 mb-2' },
-                                    recipe.tags.map(tag =>
-                                        React.createElement('span', { 
-                                            key: tag, 
-                                            className: 'text-xs bg-gray-100 px-2 py-1 rounded' 
-                                        }, tag)
-                                    )
-                                ),
-                            recipe.prepTime &&
-                                React.createElement('p', { className: 'text-sm text-gray-600' }, '⏱️ ' + recipe.prepTime),
-                            recipe.usageCount > 0 &&
-                                React.createElement('p', { className: 'text-xs text-gray-500 mt-2' }, 
-                                    'Used ' + recipe.usageCount + ' times'
-                                )
-                        )
-                    )
-                ),
-                // Add Recipe Modal
-                showAddRecipe && React.createElement('div', { 
-                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50' 
-                },
-                    React.createElement('div', { className: 'bg-white rounded-lg p-6 w-full max-w-md' },
-                        React.createElement('h3', { className: 'text-lg font-semibold mb-4' }, 'Add New Recipe'),
-                        React.createElement('div', { className: 'space-y-4' },
-                            React.createElement('input', {
-                                type: 'text',
-                                placeholder: 'Recipe name',
-                                value: newRecipe.name,
-                                onChange: (e) => setNewRecipe({...newRecipe, name: e.target.value}),
-                                className: 'w-full border rounded px-3 py-2'
-                            }),
-                            React.createElement('select', {
-                                value: newRecipe.category,
-                                onChange: (e) => setNewRecipe({...newRecipe, category: e.target.value}),
-                                className: 'w-full border rounded px-3 py-2'
-                            },
-                                mealTypes.map(type =>
-                                    React.createElement('option', { key: type, value: type, className: 'capitalize' }, type)
-                                )
-                            ),
-                            React.createElement('input', {
-                                type: 'text',
-                                placeholder: 'Tags (comma-separated)',
-                                value: newRecipe.tags,
-                                onChange: (e) => setNewRecipe({...newRecipe, tags: e.target.value}),
-                                className: 'w-full border rounded px-3 py-2'
-                            }),
-                            React.createElement('input', {
-                                type: 'text',
-                                placeholder: 'Prep time',
-                                value: newRecipe.prepTime,
-                                onChange: (e) => setNewRecipe({...newRecipe, prepTime: e.target.value}),
-                                className: 'w-full border rounded px-3 py-2'
-                            }),
-                            React.createElement('textarea', {
-                                placeholder: 'Ingredients (comma-separated)',
-                                value: newRecipe.ingredients,
-                                onChange: (e) => setNewRecipe({...newRecipe, ingredients: e.target.value}),
-                                className: 'w-full border rounded px-3 py-2 h-20'
-                            }),
-                            React.createElement('textarea', {
-                                placeholder: 'Notes',
-                                value: newRecipe.notes,
-                                onChange: (e) => setNewRecipe({...newRecipe, notes: e.target.value}),
-                                className: 'w-full border rounded px-3 py-2 h-20'
-                            })
-                        ),
-                        React.createElement('div', { className: 'flex gap-2 mt-6' },
-                            React.createElement('button', {
-                                onClick: addRecipe,
-                                className: 'bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center gap-2'
-                            },
-                                React.createElement(Check, { className: 'w-4 h-4' }),
-                                'Add'
-                            ),
-                            React.createElement('button', {
-                                onClick: () => setShowAddRecipe(false),
-                                className: 'bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 flex items-center gap-2'
-                            },
-                                React.createElement(X, { className: 'w-4 h-4' }),
-                                'Cancel'
-                            )
-                        )
-                    )
-                ),
-                // Edit Recipe Modal
-                editingRecipe && React.createElement('div', { 
-                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50' 
-                },
-                    React.createElement('div', { className: 'bg-white rounded-lg p-6 w-full max-w-md' },
-                        React.createElement('h3', { className: 'text-lg font-semibold mb-4' }, 'Edit Recipe'),
-                        React.createElement('div', { className: 'space-y-4' },
-                            React.createElement('input', {
-                                type: 'text',
-                                value: editingRecipe.name,
-                                onChange: (e) => setEditingRecipe({...editingRecipe, name: e.target.value}),
-                                className: 'w-full border rounded px-3 py-2'
-                            }),
-                            React.createElement('select', {
-                                value: editingRecipe.category,
-                                onChange: (e) => setEditingRecipe({...editingRecipe, category: e.target.value}),
-                                className: 'w-full border rounded px-3 py-2'
-                            },
-                                mealTypes.map(type =>
-                                    React.createElement('option', { key: type, value: type, className: 'capitalize' }, type)
-                                )
-                            ),
-                            React.createElement('input', {
-                                type: 'text',
-                                value: editingRecipe.tags.join(', '),
-                                onChange: (e) => setEditingRecipe({
-                                    ...editingRecipe, 
-                                    tags: e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag)
-                                }),
-        
-                            className: 'w-full border rounded px-3 py-2'
-                            }),
-                            React.createElement('input', {
-                                type: 'text',
-                                value: editingRecipe.prepTime || '',
-                                onChange: (e) => setEditingRecipe({...editingRecipe, prepTime: e.target.value}),
-                                className: 'w-full border rounded px-3 py-2',
-                                placeholder: 'Prep time'
-                            }),
-                            React.createElement('textarea', {
-                                value: editingRecipe.ingredients || '',
-                                onChange: (e) => setEditingRecipe({...editingRecipe, ingredients: e.target.value}),
-                                className: 'w-full border rounded px-3 py-2 h-20',
-                                placeholder: 'Ingredients (comma-separated)'
-                            }),
-                            React.createElement('textarea', {
-                                value: editingRecipe.notes || '',
-                                onChange: (e) => setEditingRecipe({...editingRecipe, notes: e.target.value}),
-                                className: 'w-full border rounded px-3 py-2 h-20',
-                                placeholder: 'Notes'
-                            })
-                        ),
-                        React.createElement('div', { className: 'flex gap-2 mt-6' },
-                            React.createElement('button', {
-                                onClick: updateRecipe,
-                                className: 'bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 flex items-center gap-2'
-                            },
-                                React.createElement(Check, { className: 'w-4 h-4' }),
-                                'Update'
-                            ),
-                            React.createElement('button', {
-                                onClick: () => setEditingRecipe(null),
-                                className: 'bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 flex items-center gap-2'
-                            },
-                                React.createElement(X, { className: 'w-4 h-4' }),
-                                'Cancel'
-                            )
-                        )
-                    )
-                )
-            );
-
-            // Main App
-            return React.createElement('div', { className: 'min-h-screen bg-gray-50 pb-12' },
-                React.createElement('header', { className: 'bg-white shadow-sm border-b' },
-                    React.createElement('div', { className: 'max-w-4xl mx-auto px-4 py-4 flex justify-between items-center' },
-                        React.createElement('h1', { className: 'text-xl font-bold text-gray-800' }, 'Weekly Food Schedule'),
-                        React.createElement('div', { className: 'flex gap-2' },
-                            React.createElement('button', {
-                                onClick: exportData,
-                                className: 'bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 flex items-center gap-2 text-sm'
-                            }, React.createElement(Download, { className: 'w-4 h-4' }), 'Export'),
-                            React.createElement('label', {
-                                className: 'bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 flex items-center gap-2 text-sm cursor-pointer'
-                            },
-                                React.createElement(Upload, { className: 'w-4 h-4' }),
-                                'Import',
-                                React.createElement('input', {
-                                    type: 'file',
-                                    accept: '.json',
-                                    onChange: importData,
-                                    className: 'hidden'
-                                })
-                            )
-                        )
-                    )
-                ),
-                React.createElement('nav', { className: 'bg-white border-b' },
-                    React.createElement('div', { className: 'max-w-4xl mx-auto px-4 flex space-x-4' },
-                        [
-                            { id: 'today', label: 'Today', icon: Calendar },
-                            { id: 'weekly', label: 'Planner', icon: Calendar },
-                            { id: 'recipes', label: 'Recipes', icon: Plus },
-                        ].map(({ id, label, icon: Icon }) =>
-                            React.createElement('button', {
-                                key: id,
-                                onClick: () => setActiveTab(id),
-                                className: `flex items-center gap-2 py-3 px-2 border-b-2 font-medium text-sm ${
-                                    activeTab === id ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`
-                            }, React.createElement(Icon, { className: 'w-4 h-4' }), label)
-                        )
-                    )
-                ),
-                React.createElement('main', { className: 'max-w-4xl mx-auto px-4 py-6' },
-                    activeTab === 'today' && React.createElement(TodayView),
-                    activeTab === 'weekly' && React.createElement(WeeklyPlanner),
-                    activeTab === 'recipes' && React.createElement(RecipeManager)
-                )
-            );
+        container.querySelector("form").onsubmit = () => {
+          const newRecipe = {
+            id: Date.now(),
+            name: document.getElementById("name").value,
+            category: document.getElementById("category").value,
+            tags: document.getElementById("tags").value.split(",").map(t => t.trim()).filter(Boolean),
+            notes: document.getElementById("notes").value,
+          };
+          recipes.push(newRecipe);
+          saveRecipes(recipes);
+          renderMaster();
+          renderPlanner();
         };
+      }
 
-        ReactDOM.render(
-            React.createElement(WeeklyFoodScheduler),
-            document.getElementById('root')
-        );
+      function renderShopping() {
+        const container = document.getElementById("shoppingList");
+        const plan = loadPlan();
+        const recipes = loadRecipes();
+        const used = new Set();
+        const ingredients = new Set();
+
+        Object.values(plan).forEach(day => {
+          Object.values(day).forEach(id => used.add(id));
+        });
+
+        used.forEach(id => {
+          const r = recipes.find(r => r.id == id);
+          if (r?.notes) r.notes.split(",").forEach(i => ingredients.add(i.trim()));
+        });
+
+        container.innerHTML = `<h2>🛒 Shopping List</h2>` +
+          `<ul>${[...ingredients].map(i => `<li>${i}</li>`).join("")}</ul>`;
+      }
+
+      renderToday();
+      renderPlanner();
+      renderMaster();
+      renderShopping();
     </script>
-</body>
+  </body>
 </html>
